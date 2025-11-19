@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu des Départements</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --map-fill: #e3e3e3;
+            --map-stroke: #ffffff;
+            --highlight: #454545;
+            --accent: #0055ff; /* Météo France-ish Blue */
+            --success: #00a86b;
+            --error: #e63946;
+            --text-main: #333;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Header / HUD */
+        #hud {
+            width: 100%;
+            padding: 15px 20px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            z-index: 10;
+            height: 80px;
+        }
+
+        .hud-item {
+            text-align: center;
+        }
+
+        .label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+        }
+
+        .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        #target-display {
+            color: var(--accent);
+            font-size: 2rem;
+        }
+
+        /* Map Container */
+        #map-container {
+            flex-grow: 1;
+            width: 100%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            max-width: 1000px; /* Constraint for ultra-wide screens */
+        }
+
+        /* Map Styles */
+        .department {
+            fill: var(--map-fill);
+            stroke: var(--map-stroke);
+            stroke-width: 1px;
+            cursor: pointer;
+            transition: fill 0.2s, stroke-width 0.1s;
+            vector-effect: non-scaling-stroke; /* Keeps borders crisp on resize */
+        }
+
+        .department:hover {
+            stroke: var(--highlight);
+            stroke-width: 2px;
+            z-index: 5; /* Bring to front */
+        }
+
+        .department.correct {
+            fill: var(--success) !important;
+            stroke: white;
+        }
+
+        .department.flash {
+            animation: flashAnim 1s ease-out;
+        }
+
+        @keyframes flashAnim {
+            0% { fill: var(--accent); }
+            100% { fill: var(--success); }
+        }
+
+        /* Greyed out state for start menu */
+        body.menu-mode .department {
+            fill: #f0f0f0;
+            stroke: #ddd;
+        }
+        
+        body.menu-mode .department:hover {
+            fill: #e0e0e0;
+            stroke: #bbb;
+        }
+
+        /* Tooltips and Floating UI */
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 20;
+            transform: translate(-50%, -100%);
+            margin-top: -10px;
+        }
+
+        /* Overlays */
+        #overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.4);
+            backdrop-filter: blur(2px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 30;
+        }
+
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        h1 { margin: 0 0 10px 0; font-weight: 300; }
+        h2 { margin: 0 0 20px 0; font-weight: 700; color: var(--accent); }
+        p { margin-bottom: 30px; color: #666; line-height: 1.5; }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.1s, background 0.2s;
+        }
+
+        button:hover {
+            background: #0044cc;
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        /* Clue Elements */
+        .clue-arrow {
+            stroke: var(--error);
+            stroke-width: 3;
+            fill: none;
+            marker-end: url(#arrowhead);
+            opacity: 0.8;
+            pointer-events: none;
+        }
+        
+        .clue-text {
+            font-weight: bold;
+            font-size: 14px;
+            fill: var(--text-main);
+            text-anchor: middle;
+            pointer-events: none;
+            text-shadow: 0px 0px 3px white;
+        }
+
+        /* Feedback Text */
+        #feedback {
+            position: absolute;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: bold;
+            font-size: 1.2rem;
+            pointer-events: none;
+            text-shadow: 0 2px 4px rgba(255,255,255,0.8);
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="menu-mode">
+
+    <div id="hud">
+        <div class="hud-item">
+            <div class="label">Score</div>
+            <div class="value" id="score">0</div>
+        </div>
+        <div class="hud-item">
+            <div class="label">Département Cible</div>
+            <div class="value" id="target-display">--</div>
+        </div>
+        <div class="hud-item">
+            <div class="label">Temps</div>
+            <div class="value" id="timer">02:00</div>
+        </div>
+    </div>
+
+    <div id="feedback"></div>
+
+    <div id="map-container">
+        <div id="tooltip"></div>
+    </div>
+
+    <div id="overlay">
+        <div class="card" id="start-card">
+            <h1>Géographie France</h1>
+            <p>Testez vos connaissances sur les départements français.<br>Vous avez 2 minutes.</p>
+            <button onclick="startGame()">Commencer</button>
+        </div>
+        <div class="card hidden" id="end-card">
+            <h1>Terminé !</h1>
+            <h2>Score: <span id="final-score">0</span></h2>
+            <p>Revoyons vos bonnes réponses...</p>
+            <button id="restart-btn" onclick="resetGame()">Rejouer</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const GAME_DURATION = 120; // seconds
+        const GEOJSON_URL = 'https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.json';
+
+        // --- State ---
+        let departmentsData = [];
+        let currentScore = 0;
+        let timeLeft = GAME_DURATION;
+        let timerInterval = null;
+        let gameActive = false;
+        let targetDepartment = null; // The GeoJSON feature object
+        let visitedCodes = new Set(); // Track used departments
+        let correctGuesses = []; // Store for playback {code, name}
+
+        // --- D3 Setup ---
+        const mapContainer = document.getElementById('map-container');
+        const width = mapContainer.clientWidth;
+        const height = mapContainer.clientHeight;
+
+        const svg = d3.select("#map-container")
+            .append("svg")
+            .attr("viewBox", `0 0 800 750`) // Abstract viewBox for France shape
+            .attr("preserveAspectRatio", "xMidYMid meet");
+
+        // Define Arrow Marker
+        svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 8)
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("fill", "var(--error)");
+
+        const mapGroup = svg.append("g").attr("id", "map-group");
+        const uiGroup = svg.append("g").attr("id", "ui-group"); // For arrows and text overlays
+
+        let pathGenerator; // Defined after data load
+
+        // --- Initialization ---
+        async function init() {
+            try {
+                const response = await fetch(GEOJSON_URL);
+                const data = await response.json();
+                
+                // Filter out non-mainland/corsica if necessary, but this dataset is usually good.
+                departmentsData = data.features;
+
+                // Setup Projection
+                const projection = d3.geoConicConformal()
+                    .center([2.454071, 46.279229])
+                    .scale(1) // Dummy scale
+                    .translate([0, 0]);
+
+                // Auto-fit projection to the SVG viewbox
+                projection.fitSize([800, 750], data);
+                pathGenerator = d3.geoPath().projection(projection);
+
+                renderMap();
+            } catch (error) {
+                console.error("Failed to load map data", error);
+                document.querySelector('#start-card p').textContent = "Erreur de chargement de la carte. Veuillez rafraîchir.";
+            }
+        }
+
+        function renderMap() {
+            mapGroup.selectAll("path")
+                .data(departmentsData)
+                .enter()
+                .append("path")
+                .attr("d", pathGenerator)
+                .attr("class", "department")
+                .attr("id", d => `dept-${d.properties.code}`)
+                .on("mouseover", handleMouseOver)
+                .on("mouseout", handleMouseOut)
+                .on("click", handleClick);
+        }
+
+        // --- Interaction Handlers ---
+
+        function handleMouseOver(event, d) {
+            // Hover effect handled by CSS mostly
+            // Show tooltip in menu mode OR if game is active (optional helper)
+            const tooltip = document.getElementById("tooltip");
+            const name = d.properties.nom;
+            const code = d.properties.code;
+
+            // In menu mode, show name. In game mode, don't show name unless already guessed? 
+            // Prompt says: "gives region names" in start mode.
+            if (!gameActive) {
+                tooltip.innerHTML = `<strong>${code}</strong> - ${name}`;
+                tooltip.style.opacity = 1;
+                tooltip.style.left = event.clientX + "px";
+                tooltip.style.top = event.clientY + "px";
+            }
+        }
+
+        function handleMouseOut() {
+            document.getElementById("tooltip").style.opacity = 0;
+        }
+
+        function handleClick(event, d) {
+            if (!gameActive) return;
+
+            // Clear previous clues
+            uiGroup.selectAll("*").remove();
+
+            const clickedCode = d.properties.code;
+            const targetCode = targetDepartment.properties.code;
+
+            if (clickedCode === targetCode) {
+                handleCorrectGuess(d);
+            } else {
+                handleWrongGuess(d, event);
+            }
+        }
+
+        // --- Game Logic ---
+
+        function startGame() {
+            // UI Updates
+            document.getElementById("overlay").classList.add("hidden");
+            document.body.classList.remove("menu-mode");
+            document.getElementById("end-card").classList.add("hidden");
+            document.getElementById("restart-btn").disabled = false;
+            
+            // Reset State
+            currentScore = 0;
+            timeLeft = GAME_DURATION;
+            visitedCodes.clear();
+            correctGuesses = [];
+            d3.selectAll(".department").classed("correct", false);
+            
+            updateHUD();
+
+            // Start Timer
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateHUD();
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+
+            gameActive = true;
+            nextTurn();
+        }
+
+        function nextTurn() {
+            // Clear UI clues
+            uiGroup.selectAll("*").remove();
+            document.getElementById("feedback").textContent = "";
+
+            // Pick random department not visited
+            const available = departmentsData.filter(d => !visitedCodes.has(d.properties.code));
+            
+            if (available.length === 0) {
+                endGame(); // All departments guessed!
+                return;
+            }
+
+            const randomIndex = Math.floor(Math.random() * available.length);
+            targetDepartment = available[randomIndex];
+            
+            // Don't mark as visited yet, only on success? Prompt says "random departments picked each time but never repeated". 
+            // Usually implies targets aren't repeated.
+            visitedCodes.add(targetDepartment.properties.code);
+
+            // Update HUD
+            document.getElementById("target-display").textContent = targetDepartment.properties.code;
+        }
+
+        function handleCorrectGuess(d) {
+            // Visuals
+            d3.select(`#dept-${d.properties.code}`).classed("correct", true);
+            
+            // Score
+            currentScore++;
+            updateHUD();
+            
+            // Store for playback
+            correctGuesses.push(d);
+
+            // Feedback
+            const feedback = document.getElementById("feedback");
+            feedback.style.color = "var(--success)";
+            feedback.textContent = `Bravo! ${d.properties.nom}`;
+
+            // Wait a moment then next
+            setTimeout(() => {
+                nextTurn();
+            }, 1500);
+        }
+
+        function handleWrongGuess(d, event) {
+            // 1. Get click coordinates (relative to SVG)
+            const [clickX, clickY] = d3.pointer(event, svg.node());
+
+            // 2. Get centroid of target
+            const targetCentroid = pathGenerator.centroid(targetDepartment);
+            
+            // 3. Draw Number of clicked dept
+            uiGroup.append("text")
+                .attr("class", "clue-text")
+                .attr("x", pathGenerator.centroid(d)[0])
+                .attr("y", pathGenerator.centroid(d)[1])
+                .text(d.properties.code);
+
+            // 4. Draw Arrow from Click to Target
+            uiGroup.append("line")
+                .attr("class", "clue-arrow")
+                .attr("x1", clickX)
+                .attr("y1", clickY)
+                .attr("x2", targetCentroid[0])
+                .attr("y2", targetCentroid[1]);
+
+            // Feedback Text
+            const feedback = document.getElementById("feedback");
+            feedback.style.color = "var(--error)";
+            feedback.textContent = "Ce n'est pas ça. Suivez la flèche.";
+        }
+
+        function updateHUD() {
+            document.getElementById("score").textContent = currentScore;
+            
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById("timer").textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function endGame() {
+            clearInterval(timerInterval);
+            gameActive = false;
+            
+            // Show Overlay
+            const overlay = document.getElementById("overlay");
+            overlay.classList.remove("hidden");
+            document.getElementById("start-card").classList.add("hidden");
+            document.getElementById("end-card").classList.remove("hidden");
+            
+            document.getElementById("final-score").textContent = currentScore;
+            
+            // Playback Logic
+            startPlayback();
+        }
+
+        function startPlayback() {
+            const restartBtn = document.getElementById("restart-btn");
+            restartBtn.disabled = true;
+            restartBtn.textContent = "Récapitulatif...";
+
+            // Reset visual state slightly for playback contrast
+            d3.selectAll(".department").classed("correct", false);
+
+            let i = 0;
+            const playbackInterval = setInterval(() => {
+                if (i >= correctGuesses.length) {
+                    clearInterval(playbackInterval);
+                    restartBtn.textContent = "Rejouer";
+                    restartBtn.disabled = false;
+                    return;
+                }
+
+                const d = correctGuesses[i];
+                const node = d3.select(`#dept-${d.properties.code}`);
+                
+                // Flash effect
+                node.classed("correct", true)
+                    .classed("flash", true)
+                    .raise(); // Bring to top
+
+                // Remove flash class after animation so it stays green
+                setTimeout(() => {
+                    node.classed("flash", false);
+                }, 1000);
+
+                // Update text temporarily
+                document.getElementById("final-score").textContent = `${d.properties.code} - ${d.properties.nom}`;
+
+                i++;
+            }, 800); // Speed of playback
+        }
+
+        function resetGame() {
+            d3.selectAll(".department").attr("class", "department");
+            uiGroup.selectAll("*").remove();
+            document.getElementById("end-card").classList.add("hidden");
+            document.getElementById("start-card").classList.remove("hidden");
+            document.body.classList.add("menu-mode");
+            document.getElementById("target-display").textContent = "--";
+            document.getElementById("timer").textContent = "02:00";
+            document.getElementById("score").textContent = "0";
+            currentScore = 0;
+        }
+
+        // Initialize on load
+        init();
+
+        // Handle Window Resize
+        window.addEventListener('resize', () => {
+           // SVG viewBox handles scaling, but we can update tooltips pos if needed
+        });
+
+    </script>
+</body>
+</html>

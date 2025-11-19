@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Devine le département — France</title>
+<!-- d3.js -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --card:#ffffff;
+    --muted:#9aa3ad;
+    --accent:#0b6efd;
+    --success:#17b56b;
+    --danger:#ff5b5b;
+    --stroke:#dfe6ea;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    color-scheme: light;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  .app {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 24px;
+    padding: 28px;
+    align-items: start;
+    min-height:100vh;
+    box-sizing:border-box;
+  }
+  @media (max-width:980px){
+    .app{grid-template-columns:1fr; padding:16px;}
+    .sidebar{order:2}
+    .map-wrap{order:1}
+  }
+
+  .card{
+    background:var(--card);
+    border-radius:12px;
+    box-shadow: 0 6px 18px rgba(20,30,40,0.06);
+    padding:18px;
+  }
+
+  .header{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    margin-bottom:6px;
+  }
+  .logo{
+    width:40px;height:40px;border-radius:8px;background:linear-gradient(180deg,var(--accent),#0460d3);
+    display:flex;align-items:center;justify-content:center;color:white;font-weight:700;box-shadow:0 4px 12px rgba(11,110,253,0.18);
+  }
+  h1{font-size:18px;margin:0}
+  p.lead{margin:6px 0 12px;color:var(--muted);font-size:13px}
+
+  /* map area */
+  .map-wrap{min-height:480px;display:flex;flex-direction:column;gap:12px}
+  .map-card{flex:1; display:flex;align-items:stretch;justify-content:stretch; position:relative; overflow:hidden}
+  #map{
+    width:100%;
+    height:100%;
+    display:block;
+    background:linear-gradient(180deg, #ffffff 0%, #f8fafb 100%);
+  }
+
+  /* overlay UI */
+  .hud{
+    position:absolute;right:18px;top:18px;background:rgba(255,255,255,0.9);backdrop-filter:blur(6px);
+    border-radius:10px;padding:10px 12px;border:1px solid var(--stroke);display:flex;flex-direction:column;gap:8px;align-items:flex-end;
+  }
+  .target-num{font-weight:700;font-size:18px;color:var(--accent)}
+  .timer{font-weight:700;font-size:16px;color:#222}
+  .start-btn{
+    display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;border:0;background:var(--accent);color:white;font-weight:700;cursor:pointer;
+    box-shadow: 0 6px 16px rgba(11,110,253,0.18);
+  }
+  .start-btn[disabled]{opacity:0.5;cursor:not-allowed;box-shadow:none}
+
+  /* sidebar */
+  .sidebar{width:100%;max-width:360px}
+  .stats{display:flex;gap:12px;margin-top:6px}
+  .stat{flex:1;padding:12px;border-radius:10px;background:linear-gradient(180deg,#fbfdff,#ffffff);text-align:center;border:1px solid var(--stroke)}
+  .stat .n{font-weight:800;font-size:18px}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:14px}
+  .ghost-btn{background:transparent;border:1px solid var(--stroke);padding:8px 10px;border-radius:10px;cursor:pointer}
+  .muted{color:var(--muted);font-size:13px}
+
+  /* tooltip */
+  .tooltip{position:absolute;pointer-events:none;background:#111;color:white;padding:6px 8px;border-radius:6px;font-size:12px;opacity:0;transform:translate(-50%,-120%);transition:opacity 120ms ease, transform 120ms ease;white-space:nowrap}
+  .legend{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);margin-top:12px}
+
+  /* map styles (via svg classes) */
+  .dept{fill:#ffffff;stroke:var(--stroke);stroke-width:0.8;cursor:pointer;transition:stroke-width 120ms,fill 120ms}
+  .dept:hover{stroke:#111;stroke-width:1.6}
+  .dept.disabled{fill:#f4f6f8;cursor:default;opacity:0.9}
+  .dept.correct{fill:rgba(23,181,107,0.16);stroke:rgba(23,181,107,0.7);stroke-width:1.8}
+  .dept.flash{animation:dept-flash 700ms ease 3}
+  @keyframes dept-flash{0%{fill:rgba(11,110,253,0.08)}50%{fill:rgba(11,110,253,0.22)}100%{fill:rgba(11,110,253,0.08)}}
+
+  /* small helper labels drawn on map */
+  .label{font-size:11px;fill:#0b2540;font-weight:700;pointer-events:none}
+  .click-hint{font-size:11px;fill:var(--danger);font-weight:700;pointer-events:none}
+
+  /* small accessibility */
+  .sr-only{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+  footer{grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="map-wrap card map-card">
+    <div class="header" style="position:relative;z-index:2;">
+      <div class="logo">FR</div>
+      <div style="flex:1">
+        <h1>Devine le département</h1>
+        <p class="lead">Clique sur la carte pour deviner le numéro affiché. 2 minutes — pas de répétitions. Indices visuels si tu te trompes.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        <div class="hud" id="hud">
+          <div style="font-size:12px;color:var(--muted)">Département à trouver</div>
+          <div class="target-num" id="targetNum">—</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="timer" id="timer">02:00</div>
+            <button id="startBtn" class="start-btn">Démarrer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="map" aria-hidden="false"></div>
+
+    <div class="tooltip" id="tooltip" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="sidebar">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;color:var(--muted)">Score</div>
+          <div style="font-size:26px;font-weight:800" id="score">0</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:13px;color:var(--muted)">Restants</div>
+          <div style="font-size:20px;font-weight:700" id="remaining">—</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="resetBtn" class="ghost-btn">Réinitialiser</button>
+        <button id="hintBtn" class="ghost-btn">Indice (flèche)</button>
+      </div>
+
+      <div class="legend" aria-hidden="true">
+        <div style="width:12px;height:12px;border-radius:3px;background:rgba(23,181,107,0.16);border:1px solid rgba(23,181,107,0.7)"></div><div style="font-size:12px">Correct</div>
+      </div>
+
+      <div style="margin-top:12px" class="muted">Touches: tactile ou clic. La carte est interactive même avant début : survole pour voir le nom d'une région. Pendant la partie, clique pour deviner.</div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div style="font-weight:700;margin-bottom:8px">Historique</div>
+      <div id="history" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto"></div>
+    </div>
+  </div>
+
+  <footer>Carte : <span id="dataSrc">données simplifiées open-source</span> — Design minimal & modernes</footer>
+</div>
+
+<script>
+/*
+  Devine le département
+  - Loads GeoJSON of French departments at runtime from the open-source "france-geojson" repository.
+  - Single-file HTML (code + CSS + JS) — map data loaded from CDN raw GitHub.
+  - Gameplay: 2-minute rounds, random unique departments, wrong clicks show an arrow pointing to target, correct shows name + score.
+*/
+
+(async function(){
+  // -------------------------
+  // Configuration
+  // -------------------------
+  const GEOJSON_URL = 'https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements-version-simplifiee.geojson';
+  // If the raw URL is blocked by CORS in some environments, the user can download the repo and serve locally.
+  const ROUND_SECONDS = 120;
+
+  // UI refs
+  const startBtn = document.getElementById('startBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const hintBtn = document.getElementById('hintBtn');
+  const timerEl = document.getElementById('timer');
+  const targetNumEl = document.getElementById('targetNum');
+  const scoreEl = document.getElementById('score');
+  const remainingEl = document.getElementById('remaining');
+  const historyEl = document.getElementById('history');
+  const tooltip = document.getElementById('tooltip');
+  const mapContainer = document.getElementById('map');
+  const dataSrc = document.getElementById('dataSrc');
+
+  // state
+  let geojson = null;
+  let svg, g;
+  let projection, path;
+  let width, height;
+  let deptFeatures = [];
+  let deptByCode = new Map();
+  let order = [];
+  let currentIndex = 0;
+  let targetFeature = null;
+  let playing = false;
+  let timer = null;
+  let secondsLeft = ROUND_SECONDS;
+  let score = 0;
+  let guessed = [];
+  let clickGuidesLayer;
+  let labelsLayer;
+  let pointerLayer;
+  let lastHover = null;
+
+  // device detection for touch
+  const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+  // -------------------------
+  // Helpers
+  // -------------------------
+  function fmtTime(s){
+    const mm = Math.floor(s/60).toString().padStart(2,'0');
+    const ss = (s%60).toString().padStart(2,'0');
+    return `${mm}:${ss}`;
+  }
+  function shuffle(a){
+    for(let i=a.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    return a;
+  }
+  function startRound(){
+    if(!geojson) return;
+    playing=true;
+    secondsLeft=ROUND_SECONDS;
+    score=0;
+    scoreEl.textContent=0;
+    historyEl.innerHTML='';
+    guessed=[];
+    order = geojson.features.map(f=>f.properties.code);
+    shuffle(order);
+    currentIndex=0;
+    setTargetByIndex(currentIndex);
+    updateRemaining();
+    startBtn.textContent='En cours';
+    startBtn.disabled=true;
+    resetBtn.disabled=false;
+    hintBtn.disabled=false;
+    // ungrey map (toggle class)
+    svg.selectAll('.dept').classed('disabled',false);
+    // start timer
+    timerEl.textContent = fmtTime(secondsLeft);
+    timer = setInterval(()=>{
+      secondsLeft--;
+      timerEl.textContent = fmtTime(secondsLeft);
+      if(secondsLeft<=0){
+        endRound();
+      }
+    },1000);
+  }
+  function endRound(){
+    if(!playing) return;
+    playing=false;
+    clearInterval(timer);
+    startBtn.textContent='Démarrer';
+    startBtn.disabled=false;
+    hintBtn.disabled=true;
+    // show playback of guessed in order: flash each correct department and list
+    playBackCorrects();
+  }
+  function playBackCorrects(){
+    // gather correct guessed list (objects with code,name)
+    const seq = guessed.map(g=>({code:g.code,name:g.name}));
+    let i=0;
+    function flashNext(){
+      if(i>=seq.length) return;
+      const code = seq[i].code;
+      const feat = deptByCode.get(code);
+      if(feat){
+        const id = 'dpt-'+code;
+        const el = svg.select('#'+id);
+        if(!el.empty()){
+          el.classed('flash',true);
+          setTimeout(()=>el.classed('flash',false), 2000);
+        }
+      }
+      const item = document.createElement('div');
+      item.style.display='flex';
+      item.style.justifyContent='space-between';
+      item.style.fontSize='13px';
+      item.style.padding='6px 0';
+      item.textContent = `${seq[i].code} — ${seq[i].name}`;
+      historyEl.appendChild(item);
+      i++;
+      setTimeout(flashNext, 600);
+    }
+    flashNext();
+  }
+  function resetGame(){
+    clearInterval(timer);
+    playing=false;
+    startBtn.disabled=false;
+    startBtn.textContent='Démarrer';
+    timerEl.textContent = fmtTime(ROUND_SECONDS);
+    targetNumEl.textContent='—';
+    score=0;scoreEl.textContent=0;
+    guessed=[];historyEl.innerHTML='';
+    svg.selectAll('.dept').classed('correct',false).classed('disabled',true);
+    svg.selectAll('.hint-arrow').remove();
+    svg.selectAll('.hint-label').remove();
+    remainingEl.textContent = geojson ? geojson.features.length : '—';
+    hintBtn.disabled=false;
+  }
+  function updateRemaining(){
+    remainingEl.textContent = Math.max(0, (geojson?geojson.features.length:0) - currentIndex);
+  }
+  function setTargetByIndex(i){
+    if(!geojson || i>=order.length){
+      targetFeature = null;
+      targetNumEl.textContent = '—';
+      return;
+    }
+    const code = order[i];
+    const feat = deptByCode.get(code);
+    targetFeature = feat;
+    targetNumEl.textContent = code;
+  }
+
+  function registerGuess(clickedCode, clickPoint){
+    if(!playing || !targetFeature) return;
+    const targetCode = targetFeature.properties.code;
+    const clickedFeat = deptByCode.get(clickedCode);
+    // if correct
+    if(clickedCode === targetCode){
+      // mark correct
+      const id = '#dpt-'+clickedCode;
+      svg.select(id).classed('correct',true);
+      // show positive feedback (label)
+      showTransientLabel(clickPoint, clickedFeat.properties.nom, 'label');
+      score++;scoreEl.textContent=score;
+      // add to history immediately
+      const item = document.createElement('div');
+      item.style.display='flex';
+      item.style.justifyContent='space-between';
+      item.style.fontSize='13px';
+      item.style.padding='4px 0';
+      item.textContent = `${clickedFeat.properties.code} — ${clickedFeat.properties.nom}`;
+      historyEl.prepend(item);
+      guessed.push({code: clickedFeat.properties.code, name: clickedFeat.properties.nom, time: ROUND_SECONDS - secondsLeft});
+      // move to next target
+      currentIndex++;
+      if(currentIndex >= order.length){
+        // no more departments — end
+        endRound();
+        return;
+      } else {
+        setTargetByIndex(currentIndex);
+        updateRemaining();
+        // remove any hint arrows
+        svg.selectAll('.hint-arrow').remove();
+        svg.selectAll('.hint-label').remove();
+      }
+    } else {
+      // wrong guess — show the number of clicked dept at the clicked location and an arrow pointing to target
+      showTransientLabel(clickPoint, clickedFeat.properties.code, 'click-hint', true);
+      drawArrowToTarget(clickPoint, targetFeature);
+      // allow multiple clicks until correct
+    }
+  }
+
+  function showTransientLabel(point, text, cls='label', persist=false){
+    // point: [x,y] in svg coords
+    const id = 'hint-label-'+Date.now()+'-'+Math.floor(Math.random()*1000);
+    labelsLayer.append('text')
+      .attr('id', id)
+      .attr('class','hint-label')
+      .attr('x', point[0])
+      .attr('y', point[1])
+      .attr('text-anchor','middle')
+      .attr('dy', '-6')
+      .style('font-size','12px')
+      .style('font-weight','700')
+      .style('fill', cls==='label' ? '#0b2540' : 'var(--danger)')
+      .text(text);
+    if(!persist){
+      setTimeout(()=>labelsLayer.select('#'+id).transition().duration(500).style('opacity',0).remove(),1200);
+    }
+  }
+
+  function drawArrowToTarget(clickPoint, targetFeature){
+    // compute centroid of target in pixel coords
+    const centroid = path.centroid(targetFeature);
+    // draw a small arrow line from clickPoint towards centroid -- from clickPoint to a point partway in direction
+    const dx = centroid[0]-clickPoint[0];
+    const dy = centroid[1]-clickPoint[1];
+    const len = Math.sqrt(dx*dx+dy*dy) || 1;
+    const ux = dx/len, uy = dy/len;
+    const arrowEnd = [clickPoint[0] + ux* (Math.min(140,len*0.8)), clickPoint[1] + uy*(Math.min(140,len*0.8))];
+
+    // line
+    const arrow = pointerLayer.append('g').attr('class','hint-arrow').style('pointer-events','none');
+    arrow.append('line')
+      .attr('x1', clickPoint[0]).attr('y1', clickPoint[1])
+      .attr('x2', arrowEnd[0]).attr('y2', arrowEnd[1])
+      .attr('stroke','rgba(11,35,80,0.9)')
+      .attr('stroke-width',2)
+      .attr('stroke-linecap','round')
+      .attr('opacity',0)
+      .transition().duration(120).attr('opacity',1);
+
+    // triangle head
+    const headSize = 7;
+    const angle = Math.atan2(arrowEnd[1]-clickPoint[1], arrowEnd[0]-clickPoint[0]);
+    const hx = arrowEnd[0], hy = arrowEnd[1];
+    const p1 = [hx,hy];
+    const p2 = [hx - headSize*Math.cos(angle-Math.PI/6), hy - headSize*Math.sin(angle-Math.PI/6)];
+    const p3 = [hx - headSize*Math.cos(angle+Math.PI/6), hy - headSize*Math.sin(angle+Math.PI/6)];
+    arrow.append('path')
+      .attr('d', `M${p1[0]},${p1[1]} L${p2[0]},${p2[1]} L${p3[0]},${p3[1]}Z`)
+      .attr('fill','rgba(11,35,80,0.9)')
+      .attr('opacity',0)
+      .transition().duration(120).attr('opacity',1);
+
+    // remove after some seconds
+    setTimeout(()=>arrow.transition().duration(400).style('opacity',0).remove(), 2200);
+  }
+
+  // -------------------------
+  // Load data + initialize map
+  // -------------------------
+  async function loadGeoJSON(){
+    try{
+      const r = await fetch(GEOJSON_URL);
+      if(!r.ok) throw new Error('Impossible de charger les données de la carte');
+      const j = await r.json();
+      geojson = j;
+      dataSrc.textContent = 'france-geojson (données simplifiées)';
+      initMap();
+    }catch(err){
+      console.error(err);
+      // If loading fails, show minimal message and disable start
+      mapContainer.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted)">Échec du chargement de la carte. Vérifie ta connexion ou ouvre cette page depuis un serveur (CORS).</div>`;
+      startBtn.disabled=true;
+      hintBtn.disabled=true;
+      resetBtn.disabled=true;
+    }
+  }
+
+  function initMap(){
+    // prepare features and index by INSEE code -> property names: 'code' and 'nom' in this dataset
+    geojson.features.forEach(f=>{
+      const props = f.properties;
+      // ensure code is zero-padded 2 or 3 digits
+      props.code = String(props.code).padStart(2,'0');
+      deptByCode.set(props.code, f);
+    });
+    deptFeatures = geojson.features;
+
+    // create svg inside mapContainer with responsive viewBox
+    mapContainer.innerHTML = ''; // clear loading text
+    svg = d3.select(mapContainer).append('svg')
+      .attr('width','100%')
+      .attr('height','100%')
+      .attr('preserveAspectRatio','xMidYMid meet');
+
+    // layers
+    g = svg.append('g').attr('class','map-g');
+    // pointer and label layers on top
+    pointerLayer = svg.append('g').attr('class','pointer-layer');
+    labelsLayer = svg.append('g').attr('class','labels-layer');
+
+    // dynamic sizing
+    function resize(){
+      const rect = mapContainer.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      // nice margins
+      const margin = 10;
+      // compute geo bounds and projection
+      projection = d3.geoMercator()
+        .fitSize([width-margin*2, height-margin*2], geojson);
+      path = d3.geoPath().projection(projection);
+      // set viewBox to maintain aspect ratio and responsiveness
+      svg.attr('viewBox', `0 0 ${width} ${height}`);
+
+      // render shapes
+      render();
+    }
+
+    window.addEventListener('resize', () => {
+      // throttle resize
+      clearTimeout(window._fr_resize);
+      window._fr_resize = setTimeout(resize, 120);
+    });
+
+    resize();
+
+    // interactivity prior to playing: hover shows name tooltip
+    svg.on('mousemove', (event) => {
+      const [mx,my] = d3.pointer(event);
+      // find feature under pointer using d3.geoContains
+      let found = null;
+      for(const f of deptFeatures){
+        if(d3.geoContains(f, projection.invert([mx,my]))){
+          found = f; break;
+        }
+      }
+      if(found){
+        tooltip.style.opacity='1';
+        tooltip.style.transform='translate(-50%,-120%)';
+        tooltip.style.left = (mx)+'px';
+        tooltip.style.top = (my)+'px';
+        tooltip.textContent = `${found.properties.code} — ${found.properties.nom}`;
+        lastHover = found;
+      } else {
+        tooltip.style.opacity='0';
+        lastHover = null;
+      }
+    });
+    svg.on('mouseleave', ()=>{ tooltip.style.opacity='0'; lastHover=null; });
+
+    // click / tap handler: determine which department was clicked
+    function onMapClick(event){
+      const [mx,my] = d3.pointer(event);
+      // find feature under pointer
+      let clicked = null;
+      for(const f of deptFeatures){
+        if(d3.geoContains(f, projection.invert([mx,my]))){
+          clicked = f; break;
+        }
+      }
+      if(clicked){
+        // If not started, still show a quick label
+        const clickPoint = [mx,my];
+        if(!playing){
+          showTransientLabel(clickPoint, clicked.properties.nom, 'label');
+          return;
+        }
+        registerGuess(clicked.properties.code, clickPoint);
+      }
+    }
+    // support both pointer and touch events
+    svg.on(isTouch ? 'touchstart' : 'click', function(event){ event.preventDefault(); onMapClick(event); });
+
+    // Tooltip accessibility: also support keyboard by focusing svg (not implemented for brevity)
+    // render initial (greyed) map
+    svg.selectAll('.dept').remove();
+    svg.selectAll('.dept')
+      .data(geojson.features)
+      .enter()
+      .append('path')
+      .attr('class','dept disabled')
+      .attr('id', d=> 'dpt-'+d.properties.code)
+      .attr('d', d => path(d))
+      .on('mouseover', function(event,d){
+        d3.select(this).raise().classed('hover',true).style('stroke-width',1.6);
+      })
+      .on('mouseout', function(){ d3.select(this).style('stroke-width',0.8).classed('hover',false); })
+      .on('click', function(event,d){
+        // separate click handler (in case we want to stop propagation)
+        // found is d, get centroid
+        const centroid = path.centroid(d);
+        if(!playing){
+          showTransientLabel(centroid, d.properties.nom, 'label');
+        } else {
+          registerGuess(d.properties.code, centroid);
+        }
+        event.stopPropagation();
+      });
+
+    // draw department numbers (small labels)
+    svg.selectAll('.dept-label').remove();
+    svg.selectAll('.dept-label')
+      .data(geojson.features)
+      .enter()
+      .append('text')
+      .attr('class','label')
+      .attr('x', d=> path.centroid(d)[0])
+      .attr('y', d=> path.centroid(d)[1])
+      .attr('text-anchor','middle')
+      .attr('dy','0.35em')
+      .style('font-size','9px')
+      .style('opacity', 0.85)
+      .text(d=>d.properties.code);
+
+    // update remaining count
+    remainingEl.textContent = geojson.features.length;
+
+    // initially greyed out
+    svg.selectAll('.dept').classed('disabled',true);
+
+    // store for interactions
+    // pointer and label layers already created above
+  }
+
+  // -------------------------
+  // UI wiring
+  // -------------------------
+  startBtn.addEventListener('click', ()=>{
+    if(playing){ endRound(); return; }
+    startRound();
+  });
+
+  resetBtn.addEventListener('click', ()=>{
+    resetGame();
+  });
+
+  hintBtn.addEventListener('click', ()=>{
+    // show arrow from center of viewport pointing to current target
+    if(!targetFeature) return;
+    // compute centre of svg
+    const rect = mapContainer.getBoundingClientRect();
+    const centre = [rect.width/2, rect.height/2];
+    drawArrowToTarget(centre, targetFeature);
+  });
+
+  // keyboard small convenience: space starts/ends
+  window.addEventListener('keydown', (e)=>{
+    if(e.code === 'Space'){
+      e.preventDefault();
+      if(!playing) startRound(); else endRound();
+    }
+  });
+
+  // initialize
+  await loadGeoJSON();
+
+  // accessibility: expose basic instructions
+  document.body.insertAdjacentHTML('beforeend','<div class="sr-only" aria-hidden="false">Jeu de géographie : appuie sur Démarrer pour lancer 2 minutes. Un numéro de département est affiché ; clique sur la carte pour deviner. Les erreurs donnent une flèche indice. En fin de partie, le score et le rappel s\'affichent.</div>');
+})();
+</script>
+</body>
+</html>
