@@ -1,0 +1,6 @@
+Can you please have a look at the attached one page app.
+It looks really good except that when I start playing the game, only the top half of the map is visible and I can't seem to scroll it.
+Can you explain to me which part of the code is controlling this part of the layout and what would be a fix for it?
+Also can you give me another single html file with these fixes applied.
+Finally can you tell me about the following: I can see that having just one html file containing the whole app is advantageous - would this html file work as a playable game if I had it on my github repo and somehow created a github pages link to it?
+What are the disadvantages of this one file approach? What I'm interested in is what it would take to convert this to an offline playable version, and what about some kind of version that I could somehow easily get onto my phone so its playable offline on my phone but I can also keep rapidly iterating development - making changes, somehow getting those changes onto my phone and then being able to play the game offline on my phone?

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Départements de France - Jeu</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            /* Fix: Allow hidden overflow but ensure height is handled correctly */
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            touch-action: none; /* Prevents zooming/panning gestures on mobile */
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #ui-overlay > * {
+            pointer-events: auto;
+        }
+
+        #target-display {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 22px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        #timer-score {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: right;
+        }
+
+        #timer {
+            font-size: 28px;
+            font-weight: 700;
+            color: #e74c3c;
+            margin-bottom: 5px;
+        }
+
+        #score {
+            font-size: 16px;
+            color: #666;
+        }
+
+        #map-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 10px; /* Adds a little breathing room */
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            max-height: 90vh; /* Prevents map from getting cut off by UI on small screens */
+        }
+
+        .department {
+            fill: #e8e8e8;
+            stroke: #999;
+            stroke-width: 1;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .department:hover {
+            stroke: #333;
+            stroke-width: 2;
+            z-index: 10;
+        }
+
+        .department.active {
+            fill: #ddd;
+        }
+
+        .department.correct {
+            fill: #27ae60;
+            stroke: #1e8449;
+        }
+
+        .department.wrong {
+            fill: #e74c3c;
+            stroke: #c0392b;
+        }
+
+        .department-label {
+            fill: #333;
+            font-size: 14px;
+            font-weight: 700;
+            pointer-events: none;
+            text-anchor: middle;
+            opacity: 0;
+            text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+        }
+
+        .department-label.show {
+            opacity: 1;
+        }
+
+        .arrow {
+            stroke: #e74c3c;
+            stroke-width: 3;
+            fill: none;
+            marker-end: url(#arrowhead);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .arrow.show {
+            opacity: 1;
+        }
+
+        #start-screen, #end-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+
+        #start-screen h1, #end-screen h1 {
+            font-size: 48px;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #start-screen p, #end-screen p {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 30px;
+            text-align: center;
+            max-width: 600px;
+            padding: 0 20px;
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+
+        #feedback {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            font-size: 24px;
+            font-weight: 600;
+            z-index: 150;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        #feedback.show {
+            opacity: 1;
+        }
+
+        #feedback.correct {
+            color: #27ae60;
+        }
+
+        #replay-list {
+            max-height: 40vh;
+            overflow-y: auto;
+            margin-top: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 80%;
+            max-width: 400px;
+        }
+
+        #replay-list div {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            #ui-overlay {
+                width: 100%;
+                justify-content: space-between;
+                padding: 10px;
+            }
+
+            #target-display, #timer-score {
+                padding: 10px 15px;
+                font-size: 16px;
+                background: rgba(255,255,255,0.9);
+            }
+
+            #timer {
+                font-size: 20px;
+            }
+
+            #start-screen h1, #end-screen h1 {
+                font-size: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="ui-overlay">
+            <div id="target-display" class="hidden">Département : <span id="target-number"></span></div>
+            <div id="timer-score">
+                <div id="timer">2:00</div>
+                <div id="score">Score : <span id="score-value">0</span></div>
+            </div>
+        </div>
+        
+        <div id="map-container">
+            <svg id="map"></svg>
+        </div>
+
+        <div id="feedback"></div>
+
+        <div id="start-screen">
+            <h1>🗺️ Départements de France</h1>
+            <p>Trouvez autant de départements que possible en 2 minutes ! Cliquez sur le département correspondant au numéro affiché.</p>
+            <button id="start-button">Commencer</button>
+        </div>
+
+        <div id="end-screen" class="hidden">
+            <h1>Terminé !</h1>
+            <p id="final-score"></p>
+            <div id="replay-list"></div>
+            <br>
+            <button id="restart-button">Rejouer</button>
+        </div>
+    </div>
+
+    <script>
+        // List of departments (abbreviated for brevity, but functional)
+        const departments = [
+            {"code":"01","nom":"Ain","coords":[5.35,46.05]},{"code":"02","nom":"Aisne","coords":[3.45,49.55]},{"code":"03","nom":"Allier","coords":[3.3,46.35]},{"code":"04","nom":"Alpes-de-Haute-Provence","coords":[6.25,44.15]},{"code":"05","nom":"Hautes-Alpes","coords":[6.35,44.65]},{"code":"06","nom":"Alpes-Maritimes","coords":[7.15,43.85]},{"code":"07","nom":"Ardèche","coords":[4.45,44.75]},{"code":"08","nom":"Ardennes","coords":[4.65,49.65]},{"code":"09","nom":"Ariège","coords":[1.45,42.95]},{"code":"10","nom":"Aube","coords":[4.15,48.35]},{"code":"11","nom":"Aude","coords":[2.45,43.05]},{"code":"12","nom":"Aveyron","coords":[2.75,44.25]},{"code":"13","nom":"Bouches-du-Rhône","coords":[5.15,43.55]},{"code":"14","nom":"Calvados","coords":[-0.45,49.15]},{"code":"15","nom":"Cantal","coords":[2.65,45.05]},{"code":"16","nom":"Charente","coords":[0.15,45.65]},{"code":"17","nom":"Charente-Maritime","coords":[-0.85,45.75]},{"code":"18","nom":"Cher","coords":[2.45,47.05]},{"code":"19","nom":"Corrèze","coords":[1.85,45.35]},{"code":"2A","nom":"Corse-du-Sud","coords":[9.0,41.85]},{"code":"2B","nom":"Haute-Corse","coords":[9.25,42.45]},{"code":"21","nom":"Côte-d'Or","coords":[4.85,47.35]},{"code":"22","nom":"Côtes-d'Armor","coords":[-2.95,48.45]},{"code":"23","nom":"Creuse","coords":[2.05,46.05]},{"code":"24","nom":"Dordogne","coords":[0.75,45.15]},{"code":"25","nom":"Doubs","coords":[6.35,47.15]},{"code":"26","nom":"Drôme","coords":[5.15,44.65]},{"code":"27","nom":"Eure","coords":[0.95,49.15]},{"code":"28","nom":"Eure-et-Loir","coords":[1.35,48.45]},{"code":"29","nom":"Finistère","coords":[-4.15,48.35]},{"code":"30","nom":"Gard","coords":[4.15,43.95]},{"code":"31","nom":"Haute-Garonne","coords":[1.25,43.45]},{"code":"32","nom":"Gers","coords":[0.45,43.65]},{"code":"33","nom":"Gironde","coords":[-0.65,44.85]},{"code":"34","nom":"Hérault","coords":[3.45,43.65]},{"code":"35","nom":"Ille-et-Vilaine","coords":[-1.65,48.15]},{"code":"36","nom":"Indre","coords":[1.55,46.75]},{"code":"37","nom":"Indre-et-Loire","coords":[0.75,47.35]},{"code":"38","nom":"Isère","coords":[5.65,45.25]},{"code":"39","nom":"Jura","coords":[5.75,46.65]},{"code":"40","nom":"Landes","coords":[-0.85,43.95]},{"code":"41","nom":"Loir-et-Cher","coords":[1.35,47.65]},{"code":"42","nom":"Loire","coords":[4.25,45.65]},{"code":"43","nom":"Haute-Loire","coords":[3.85,45.15]},{"code":"44","nom":"Loire-Atlantique","coords":[-1.65,47.35]},{"code":"45","nom":"Loiret","coords":[2.35,47.95]},{"code":"46","nom":"Lot","coords":[1.55,44.65]},{"code":"47","nom":"Lot-et-Garonne","coords":[0.45,44.35]},{"code":"48","nom":"Lozère","coords":[3.55,44.55]},{"code":"49","nom":"Maine-et-Loire","coords":[-0.55,47.45]},{"code":"50","nom":"Manche","coords":[-1.35,49.15]},{"code":"51","nom":"Marne","coords":[4.25,48.95]},{"code":"52","nom":"Haute-Marne","coords":[5.15,48.15]},{"code":"53","nom":"Mayenne","coords":[-0.75,48.25]},{"code":"54","nom":"Meurthe-et-Moselle","coords":[6.15,48.75]},{"code":"55","nom":"Meuse","coords":[5.35,49.05]},{"code":"56","nom":"Morbihan","coords":[-2.85,47.85]},{"code":"57","nom":"Moselle","coords":[6.65,49.05]},{"code":"58","nom":"Nièvre","coords":[3.55,47.15]},{"code":"59","nom":"Nord","coords":[3.25,50.45]},{"code":"60","nom":"Oise","coords":[2.35,49.45]},{"code":"61","nom":"Orne","coords":[0.15,48.65]},{"code":"62","nom":"Pas-de-Calais","coords":[2.25,50.55]},{"code":"63","nom":"Puy-de-Dôme","coords":[3.05,45.75]},{"code":"64","nom":"Pyrénées-Atlantiques","coords":[-0.85,43.25]},{"code":"65","nom":"Hautes-Pyrénées","coords":[0.25,43.05]},{"code":"66","nom":"Pyrénées-Orientales","coords":[2.65,42.65]},{"code":"67","nom":"Bas-Rhin","coords":[7.65,48.65]},{"code":"68","nom":"Haut-Rhin","coords":[7.25,47.85]},{"code":"69","nom":"Rhône","coords":[4.75,45.85]},{"code":"70","nom":"Haute-Saône","coords":[6.15,47.65]},{"code":"71","nom":"Saône-et-Loire","coords":[4.55,46.65]},{"code":"72","nom":"Sarthe","coords":[0.25,48.05]},{"code":"73","nom":"Savoie","coords":[6.45,45.55]},{"code":"74","nom":"Haute-Savoie","coords":[6.45,46.05]},{"code":"75","nom":"Paris","coords":[2.35,48.86]},{"code":"76","nom":"Seine-Maritime","coords":[0.95,49.65]},{"code":"77","nom":"Seine-et-Marne","coords":[2.95,48.65]},{"code":"78","nom":"Yvelines","coords":[1.85,48.85]},{"code":"79","nom":"Deux-Sèvres","coords":[-0.35,46.55]},{"code":"80","nom":"Somme","coords":[2.25,49.95]},{"code":"81","nom":"Tarn","coords":[2.15,43.85]},{"code":"82","nom":"Tarn-et-Garonne","coords":[1.35,44.05]},{"code":"83","nom":"Var","coords":[6.15,43.45]},{"code":"84","nom":"Vaucluse","coords":[5.15,44.05]},{"code":"85","nom":"Vendée","coords":[-1.35,46.75]},{"code":"86","nom":"Vienne","coords":[0.45,46.65]},{"code":"87","nom":"Haute-Vienne","coords":[1.25,45.85]},{"code":"88","nom":"Vosges","coords":[6.35,48.15]},{"code":"89","nom":"Yonne","coords":[3.65,47.85]},{"code":"90","nom":"Territoire de Belfort","coords":[6.85,47.65]},{"code":"91","nom":"Essonne","coords":[2.25,48.55]},{"code":"92","nom":"Hauts-de-Seine","coords":[2.25,48.85]},{"code":"93","nom":"Seine-Saint-Denis","coords":[2.45,48.92]},{"code":"94","nom":"Val-de-Marne","coords":[2.45,48.78]},{"code":"95","nom":"Val-d'Oise","coords":[2.15,49.05]}
+        ];
+
+        let gameState = {
+            playing: false,
+            score: 0,
+            timeLeft: 120,
+            currentTarget: null,
+            usedDepartments: [],
+            correctGuesses: [],
+            timerInterval: null
+        };
+
+        const svg = d3.select("#map");
+        // We set the SVG size to fit the container
+        const width = 800;
+        const height = 800;
+        
+        svg.attr("viewBox", `0 0 ${width} ${height}`)
+           .attr("preserveAspectRatio", "xMidYMid meet");
+
+        svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("markerWidth", 10)
+            .attr("markerHeight", 10)
+            .attr("refX", 9)
+            .attr("refY", 3)
+            .attr("orient", "auto")
+            .append("polygon")
+            .attr("points", "0 0, 10 3, 0 6")
+            .attr("fill", "#e74c3c");
+
+        // NOTE: We don't define projection here anymore. 
+        // We wait until we have the data to fit it perfectly.
+
+        d3.json("https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson")
+            .then(function(france) {
+                
+                // THE FIX: Automatically center and scale map to fit the 800x800 box
+                const projection = d3.geoConicConformal()
+                    .fitSize([width, height], france);
+
+                const path = d3.geoPath().projection(projection);
+
+                const g = svg.append("g");
+
+                g.selectAll("path")
+                    .data(france.features)
+                    .enter()
+                    .append("path")
+                    .attr("d", path)
+                    .attr("class", "department")
+                    .attr("data-code", d => d.properties.code)
+                    .attr("data-nom", d => d.properties.nom)
+                    .on("click", function(event, d) {
+                        if (gameState.playing) {
+                            handleGuess(d.properties.code, d.properties.nom, event, projection);
+                        }
+                    })
+                    .append("title")
+                    .text(d => `${d.properties.code} - ${d.properties.nom}`);
+
+                g.selectAll("text")
+                    .data(france.features)
+                    .enter()
+                    .append("text")
+                    .attr("class", "department-label")
+                    .attr("x", d => path.centroid(d)[0])
+                    .attr("y", d => path.centroid(d)[1])
+                    .text(d => d.properties.code)
+                    .attr("data-code", d => d.properties.code);
+
+                svg.append("line")
+                    .attr("class", "arrow")
+                    .attr("x1", 0)
+                    .attr("y1", 0)
+                    .attr("x2", 0)
+                    .attr("y2", 0);
+
+                // Store projection for use in click handling
+                svg.node()._projection = projection;
+            });
+
+        function handleGuess(code, nom, event, projection) {
+            const clickedPath = d3.select(`path[data-code="${code}"]`);
+            
+            // Fallback to stored projection if not passed
+            if(!projection) projection = svg.node()._projection;
+
+            if (code === gameState.currentTarget.code) {
+                clickedPath.classed("correct", true);
+                
+                d3.select(`.department-label[data-code="${code}"]`)
+                    .classed("show", true);
+                
+                gameState.score++;
+                gameState.correctGuesses.push({code, nom});
+                document.getElementById("score-value").textContent = gameState.score;
+                
+                showFeedback(`✓ ${nom}`, true);
+                
+                d3.select(".arrow").classed("show", false);
+                
+                setTimeout(() => {
+                    clickedPath.classed("correct", false);
+                    nextTarget();
+                }, 1000);
+            } else {
+                clickedPath.classed("wrong", true);
+                
+                d3.select(`.department-label[data-code="${code}"]`)
+                    .text(code)
+                    .classed("show", true);
+                
+                const clickPoint = d3.pointer(event, svg.node());
+                
+                // Calculate arrow direction
+                // We need to project the Lat/Long of the target to X/Y pixels
+                const targetDept = departments.find(d => d.code === gameState.currentTarget.code);
+                const targetPoint = projection(targetDept.coords);
+                
+                const angle = Math.atan2(targetPoint[1] - clickPoint[1], targetPoint[0] - clickPoint[0]);
+                const distance = 80;
+                const endX = clickPoint[0] + Math.cos(angle) * distance;
+                const endY = clickPoint[1] + Math.sin(angle) * distance;
+                
+                d3.select(".arrow")
+                    .attr("x1", clickPoint[0])
+                    .attr("y1", clickPoint[1])
+                    .attr("x2", endX)
+                    .attr("y2", endY)
+                    .classed("show", true);
+                
+                setTimeout(() => {
+                    clickedPath.classed("wrong", false);
+                    d3.select(`.department-label[data-code="${code}"]`).classed("show", false);
+                }, 1500);
+            }
+        }
+
+        function nextTarget() {
+            const available = departments.filter(d => !gameState.usedDepartments.includes(d.code));
+            
+            if (available.length === 0 || gameState.timeLeft <= 0) {
+                endGame();
+                return;
+            }
+            
+            const target = available[Math.floor(Math.random() * available.length)];
+            gameState.currentTarget = target;
+            gameState.usedDepartments.push(target.code);
+            document.getElementById("target-number").textContent = target.code;
+            
+            d3.select(".arrow").classed("show", false);
+            d3.selectAll(".department-label").classed("show", false);
+        }
+
+        function startGame() {
+            gameState = {
+                playing: true,
+                score: 0,
+                timeLeft: 120,
+                currentTarget: null,
+                usedDepartments: [],
+                correctGuesses: [],
+                timerInterval: null
+            };
+            
+            document.getElementById("start-screen").classList.add("hidden");
+            document.getElementById("target-display").classList.remove("hidden");
+            document.getElementById("score-value").textContent = "0";
+            
+            d3.selectAll(".department").classed("active"
