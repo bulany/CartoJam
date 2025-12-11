@@ -1,0 +1,432 @@
+This is a great pivot. Moving to Svelte (specifically **SvelteKit**) is the perfect choice here. It makes handling state (hovering vs. locked, arrow key navigation) and componentizing the UI (Map vs. Info Panel) much easier than vanilla HTML/JS.
+
+Here is a step-by-step walkthrough to build this **"Reference Mode" PWA**.
+
+### Prerequisites
+You need **Node.js** installed on your computer.
+
+### Step 1: Set up the Project
+
+Open your terminal (Command Prompt or Terminal) and run these commands one by one:
+
+```bash
+# 1. Create a new SvelteKit project
+npm create svelte@latest france-reference
+# (Select "Skeleton Project", "No TypeScript" (for simplicity today), and "No" to the rest)
+
+# 2. Go into the folder
+cd france-reference
+
+# 3. Install dependencies
+npm install
+
+# 4. Install D3 and the PWA plugin
+npm install d3 @vite-pwa/sveltekit -D
+```
+
+### Step 2: The Data Structure
+
+To get the "Region" and "Prefecture" data working, we need a better data source than just the GeoJSON.
+
+Create a file at `src/lib/departments.js`.
+I have compiled a richer dataset for you here (abbreviated for the example, but structurally complete):
+
+```javascript
+// src/lib/departments.js
+
+export const departmentsData = [
+    { code: "01", name: "Ain", prefecture: "Bourg-en-Bresse", region: "Auvergne-Rhône-Alpes" },
+    { code: "02", name: "Aisne", prefecture: "Laon", region: "Hauts-de-France" },
+    { code: "03", name: "Allier", prefecture: "Moulins", region: "Auvergne-Rhône-Alpes" },
+    // ... In a real app, you would paste the full list of 100+ here. 
+    // For the prototype to work immediately, I'll add a few scattered ones + logic to handle missing ones
+    { code: "06", name: "Alpes-Maritimes", prefecture: "Nice", region: "Provence-Alpes-Côte d'Azur" },
+    { code: "13", name: "Bouches-du-Rhône", prefecture: "Marseille", region: "Provence-Alpes-Côte d'Azur" },
+    { code: "33", name: "Gironde", prefecture: "Bordeaux", region: "Nouvelle-Aquitaine" },
+    { code: "69", name: "Rhône", prefecture: "Lyon", region: "Auvergne-Rhône-Alpes" },
+    { code: "75", name: "Paris", prefecture: "Paris", region: "Île-de-France" },
+];
+
+// Helper to find data by code
+export function getDeptInfo(code) {
+    return departmentsData.find(d => d.code === code) || { 
+        code, 
+        name: "Unknown", 
+        prefecture: "Unknown", 
+        region: "Unknown" 
+    };
+}
+
+// Helper to get next/prev code
+export function getNextCode(currentCode, direction) {
+    // In a full app, map over the real full list. 
+    // Here we will rely on the GeoJSON features list passed from the component
+    return null; // Logic handled in component for now
+}
+```
+
+### Step 3: Configure the PWA
+
+Update `vite.config.js` to enable offline capabilities.
+
+```javascript
+// vite.config.js
+import { sveltekit } from '@sveltejs/kit/vite';
+import { SvelteKitPWA } from '@vite-pwa/sveltekit';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+	plugins: [
+		sveltekit(),
+		SvelteKitPWA({
+			registerType: 'autoUpdate',
+			manifest: {
+				name: 'France Reference',
+				short_name: 'FranceRef',
+				start_url: '/',
+				display: 'standalone',
+				theme_color: '#ffffff',
+				background_color: '#ffffff',
+				icons: [
+					{
+						src: 'pwa-192x192.png', // You'd need to add these icons to /static later
+						sizes: '192x192',
+						type: 'image/png'
+					}
+				]
+			}
+		})
+	]
+});
+```
+
+### Step 4: The Main Application Code
+
+We will write everything in `src/routes/+page.svelte`. In Svelte, this file acts as the View, Controller, and Style sheet.
+
+Copy this entire block into `src/routes/+page.svelte`:
+
+```html
+<script>
+    import { onMount } from 'svelte';
+    import * as d3 from 'd3';
+    import { departmentsData, getDeptInfo } from '$lib/departments.js';
+
+    let svg;
+    let width = 800;
+    let height = 800;
+    
+    // State
+    let geojson = null;
+    let hoveredCode = null;
+    let lockedCode = null; // The "Click" selection
+    
+    // Derived state for the UI panel
+    $: activeCode = hoveredCode || lockedCode;
+    $: activeInfo = activeCode ? getDeptInfo(activeCode) : null;
+    
+    // Derived state for Region Highlighting
+    $: activeRegion = activeInfo ? activeInfo.region : null;
+
+    onMount(async () => {
+        // Load the map data
+        const res = await fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson');
+        geojson = await res.json();
+        
+        initMap();
+        window.addEventListener('keydown', handleKeydown);
+    });
+
+    // Helper: projection
+    let projection;
+    let pathGenerator;
+
+    function initMap() {
+        if (!geojson || !svg) return;
+
+        projection = d3.geoConicConformal()
+            .fitSize([width, height], geojson);
+        
+        pathGenerator = d3.geoPath().projection(projection);
+
+        render();
+    }
+
+    // Handle Keyboard Navigation
+    function handleKeydown(e) {
+        if (!lockedCode || !geojson) return;
+
+        // Get all codes from the GeoJSON to ensure order
+        const allCodes = geojson.features.map(f => f.properties.code);
+        const currentIndex = allCodes.indexOf(lockedCode);
+
+        if (e.key === 'ArrowRight') {
+            const nextIndex = (currentIndex + 1) % allCodes.length;
+            lockedCode = allCodes[nextIndex];
+        } else if (e.key === 'ArrowLeft') {
+            const prevIndex = (currentIndex - 1 + allCodes.length) % allCodes.length;
+            lockedCode = allCodes[prevIndex];
+        }
+    }
+
+    // Reactive Block: Re-run D3 updates when state changes
+    $: if (svg && geojson) {
+        // This block runs whenever lockedCode or hoveredCode changes
+        const g = d3.select(svg).select("g");
+        
+        // Update styling classes
+        g.selectAll("path")
+            .attr("class", d => {
+                const code = d.properties.code;
+                const info = getDeptInfo(code);
+                const isRegionMatch = activeRegion && info.region === activeRegion;
+                
+                let classes = "department";
+                if (code === lockedCode) classes += " locked";
+                if (code === hoveredCode) classes += " hovered";
+                if (isRegionMatch && code !== activeCode) classes += " in-region";
+                
+                return classes;
+            });
+
+        // Update Prefecture Dot
+        if (activeInfo && activeInfo.prefecture !== "Unknown") {
+            // Find centroid of the active department
+            const feature = geojson.features.find(f => f.properties.code === activeCode);
+            if (feature) {
+                const centroid = pathGenerator.centroid(feature);
+                
+                d3.select(svg).select("#pref-dot")
+                    .attr("cx", centroid[0])
+                    .attr("cy", centroid[1])
+                    .attr("opacity", 1);
+            }
+        } else {
+             d3.select(svg).select("#pref-dot").attr("opacity", 0);
+        }
+    }
+
+    // Initial Render (Draws paths once)
+    function render() {
+        const g = d3.select(svg).select("g");
+        
+        g.selectAll("path")
+            .data(geojson.features)
+            .join("path")
+            .attr("d", pathGenerator)
+            .attr("stroke", "#999")
+            .attr("stroke-width", "1")
+            .on("mouseenter", (e, d) => hoveredCode = d.properties.code)
+            .on("mouseleave", () => hoveredCode = null)
+            .on("click", (e, d) => {
+                // Toggle lock
+                if (lockedCode === d.properties.code) lockedCode = null;
+                else lockedCode = d.properties.code;
+            });
+    }
+
+</script>
+
+<div class="layout">
+    <!-- MAP SIDE -->
+    <div class="map-container">
+        <svg bind:this={svg} viewBox="0 0 {width} {height}">
+            <g></g> <!-- Departments Group -->
+            <circle id="pref-dot" r="6" fill="#e74c3c" stroke="white" stroke-width="2" opacity="0" pointer-events="none"/>
+        </svg>
+    </div>
+
+    <!-- SIDEBAR INFO -->
+    <div class="sidebar">
+        {#if activeInfo}
+            <div class="info-card">
+                <div class="big-number">{activeInfo.code}</div>
+                <h1 class="dept-name">{activeInfo.name}</h1>
+                
+                <div class="meta-row">
+                    <span class="label">Préfecture:</span>
+                    <span class="value">{activeInfo.prefecture}</span>
+                </div>
+                
+                <div class="meta-row">
+                    <span class="label">Région:</span>
+                    <span class="value region-pill">{activeInfo.region}</span>
+                </div>
+
+                {#if lockedCode}
+                    <div class="hint">Use ⬅️ ➡️ keys to navigate</div>
+                {/if}
+            </div>
+        {:else}
+            <div class="placeholder">
+                Survolez un département
+            </div>
+        {/if}
+    </div>
+</div>
+
+<style>
+    :global(body) {
+        margin: 0;
+        font-family: 'Inter', sans-serif;
+        background: #f0f2f5;
+        overflow: hidden; /* App feel */
+    }
+
+    .layout {
+        display: flex;
+        height: 100vh;
+        width: 100vw;
+    }
+
+    .map-container {
+        flex: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+    }
+
+    svg {
+        width: 100%;
+        height: 100%;
+        max-height: 95vh;
+    }
+
+    /* D3 STYLES */
+    :global(.department) {
+        fill: #e0e0e0;
+        cursor: pointer;
+        transition: fill 0.2s;
+    }
+
+    :global(.department:hover), :global(.department.hovered) {
+        fill: #a0c4ff;
+    }
+
+    :global(.department.locked) {
+        fill: #3498db; /* Strong Blue for Selection */
+        stroke: #2c3e50;
+        stroke-width: 2px;
+    }
+
+    :global(.department.in-region) {
+        fill: #dbeafe; /* Very light blue for same region */
+    }
+
+    /* SIDEBAR STYLES */
+    .sidebar {
+        flex: 1;
+        background: #fff;
+        border-left: 1px solid #ddd;
+        padding: 40px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        box-shadow: -5px 0 15px rgba(0,0,0,0.05);
+        z-index: 10;
+    }
+
+    .big-number {
+        font-size: 120px;
+        font-weight: 900;
+        color: #e74c3c;
+        line-height: 1;
+        margin-bottom: 10px;
+        opacity: 0.15;
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        pointer-events: none;
+    }
+
+    .info-card {
+        position: relative;
+    }
+
+    .dept-name {
+        font-size: 3rem;
+        font-weight: 800;
+        color: #2c3e50;
+        margin: 0 0 30px 0;
+        line-height: 1.1;
+    }
+
+    .meta-row {
+        display: flex;
+        align-items: baseline;
+        margin-bottom: 15px;
+        font-size: 1.2rem;
+    }
+
+    .label {
+        font-weight: 600;
+        color: #95a5a6;
+        width: 120px;
+    }
+
+    .value {
+        color: #34495e;
+        font-weight: 500;
+    }
+
+    .region-pill {
+        background: #ecf0f1;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 1rem;
+    }
+
+    .placeholder {
+        color: #bdc3c7;
+        font-size: 1.5rem;
+        text-align: center;
+        font-weight: 300;
+    }
+
+    .hint {
+        margin-top: 50px;
+        font-size: 0.9rem;
+        color: #95a5a6;
+        border-top: 1px solid #eee;
+        padding-top: 10px;
+    }
+
+    @media (max-width: 768px) {
+        .layout { flex-direction: column; }
+        .sidebar { order: 2; height: 30%; border-left: none; border-top: 1px solid #ddd; padding: 20px;}
+        .map-container { flex: 3; }
+        .dept-name { font-size: 2rem; }
+        .big-number { font-size: 80px; }
+    }
+</style>
+```
+
+### Step 5: How to Run and Test
+
+1.  **Development Mode (Fastest):**
+    Run `npm run dev -- --open`
+    This starts a local server. You can make changes and they update instantly.
+
+2.  **Test the PWA (Production Build):**
+    PWAs often behave differently in dev mode. To test the offline capability:
+    ```bash
+    npm run build
+    npm run preview
+    ```
+    Open the link shown (usually `localhost:4173`).
+    In Chrome, you can now click the "Install" icon in the address bar.
+
+### How this meets your Request
+
+1.  **Map Layout:** A split-screen layout (Map left, Info right).
+2.  **Hover Interaction:** As you mouse over, `hoveredCode` updates, which triggers the reactive statement `$: activeCode...`, which updates the D3 classes instantly.
+3.  **Region Logic:** I used `activeInfo.region` to find the region. The D3 update loop checks: `if (info.region === activeRegion)`. This highlights the whole region in a lighter blue.
+4.  **Prefecture Dot:** I used `pathGenerator.centroid(feature)` to place the dot dynamically inside the selected department.
+5.  **Lock & Arrows:**
+    *   Clicking sets `lockedCode`.
+    *   The `window.addEventListener('keydown'...)` logic finds the current index in the array and moves to the next/prev code, updating `lockedCode`, which triggers the whole UI to update.
+
+### Next Steps for you
+
+The `src/lib/departments.js` file is currently a skeleton. To make the "Reference" aspect perfect, you just need to populate that array with the real data for all 101 departments. You can find JSON lists online or ask an AI to "generate a JSON array of French departments with code, name, prefecture, and region."

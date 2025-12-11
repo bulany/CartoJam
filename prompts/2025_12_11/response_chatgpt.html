@@ -1,0 +1,216 @@
+Great — we can absolutely build this together.
+Since we’re still early in the setup phase, let’s begin by **laying the foundations for a Svelte PWA**, and then we’ll build the **interactive “reference mode”** (hovering, highlighting, prefecture dot, region outline, arrow-key navigation).
+
+Below is the cleanest, modern setup path for what you described.
+
+---
+
+# ✅ **PHASE 1: Set Up a Svelte PWA Project**
+
+We’ll use **SvelteKit**, because:
+
+* It supports PWAs very cleanly via the official `@vite-pwa/sveltekit` plugin.
+* It handles routing, file-based assets, static exporting, etc.
+* It’s ideal for single-page-app-style projects.
+* You can still deploy it as a *single-page* PWA.
+
+## 1. **Create the project**
+
+From a terminal:
+
+```bash
+npm create svelte@latest departements-ref
+cd departements-ref
+npm install
+```
+
+When prompted:
+
+* ✔ Skeleton project
+* ✔ TypeScript — **optional**, but recommended
+* ✔ Add ESLint — optional
+* ✔ Add Prettier — optional
+
+## 2. Install the PWA plugin
+
+```bash
+npm install -D @vite-pwa/sveltekit
+```
+
+Then edit `vite.config.js` and add:
+
+```js
+import { sveltekit } from '@sveltejs/kit/vite';
+import { SvelteKitPWA } from '@vite-pwa/sveltekit';
+
+export default {
+  plugins: [
+    sveltekit(),
+    SvelteKitPWA({
+      registerType: 'autoUpdate',
+      manifest: {
+        name: 'Départements de France',
+        short_name: 'Départements',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#ffffff',
+        theme_color: '#ffffff',
+        icons: [
+          {
+            src: 'icon-192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'icon-512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          }
+        ]
+      }
+    })
+  ]
+};
+```
+
+(I’ll generate icons later once we have visuals.)
+
+## 3. Test PWA mode
+
+```bash
+npm run dev
+```
+
+Then open the app in a browser — you should see the service worker and PWA manifest being applied.
+
+---
+
+# ✅ **PHASE 2: Preparing the Map Data**
+
+To support your reference mode, we need:
+
+* Department polygons
+* Department metadata (name, number, prefecture city, region)
+* Prefecture coordinates
+* Region polygons
+
+To keep things simple and open-source, we’ll use the excellent official geographic dataset:
+
+### 📍 **GEOJSON SOURCE**
+
+**IGN (France) Admin Express** — open license
+Contains all departments, prefectures, regions, etc.
+
+I can preprocess this for you into 2 handy files:
+
+### **1. departments.geojson**
+
+Containing:
+
+* geometry (polygon)
+* department number (`code`)
+* department name (`nom`)
+* prefecture coordinates (`pref_x`, `pref_y`)
+* region code
+
+### **2. regions.geojson**
+
+Containing region polygons.
+
+### **3. departments.json**
+
+A clean metadata table:
+
+```json
+{
+  "01": {
+    "name": "Ain",
+    "prefecture": "Bourg-en-Bresse",
+    "region": "Auvergne-Rhône-Alpes"
+  },
+  "02": {
+    "name": "Aisne",
+    "prefecture": "Laon",
+    "region": "Hauts-de-France"
+  }
+}
+```
+
+👉 **Question:**
+Would you like me to generate these files now and embed them as static assets in your Svelte project, or should we load them from a CDN?
+
+---
+
+# ✅ **PHASE 3: Building the Reference Mode UI (Svelte)**
+
+This is the mode you described:
+
+* Map of France
+
+* Hover →
+
+  * highlight department
+  * show department number (large)
+  * show name
+  * show prefecture
+  * show region
+  * show prefecture dot
+  * highlight region outline
+
+* Click → department “sticks”
+
+* Arrow keys → numerical navigation (01 → 02 → 03 etc)
+
+The structure of the UI looks like this:
+
+```
+┌──────────────────────────────┬──────────────────────────┐
+│   Interactive Map (SVG)      │ Department Info Panel    │
+│   - Hover highlights dept    │ - Big number             │
+│   - Prefecture dot           │ - Name                   │
+│   - Region outline           │ - Prefecture             │
+│                              │ - Region                 │
+└──────────────────────────────┴──────────────────────────┘
+```
+
+We’ll build:
+
+1. `+page.svelte` → contains the layout and map
+2. `Map.svelte` → renders the SVG and handles interactions
+3. `stores.js` → Svelte store for current department
+
+All styling can be minimalist and modern (thin clean outlines, subtle hover glow, crisp typography).
+
+---
+
+# 🚀 **NEXT STEP: I need one piece of information from you**
+
+Before I generate the project scaffolding and full Svelte components:
+
+### **Which dataset source do you prefer?**
+
+1️⃣ **I generate the final preprocessed GeoJSON & JSON files right here**, and you drop them into:
+`static/data/departments.geojson`,
+`static/data/regions.geojson`,
+`src/lib/data/departments.json`.
+
+2️⃣ **You download the original IGN dataset** and I provide a small Node script that transforms it into the clean formats the app needs.
+
+3️⃣ **You want everything embedded into the Svelte code (no external files)** — possible, but the file will be large (~800KB).
+
+---
+
+# 🟦 **What would you like? Option 1, 2, or 3?**
+
+Once you choose, I’ll immediately:
+
+* prepare the project structure
+* create the Svelte components
+* build the hover/highlight/prefecture-dot system
+* implement sticky-select + arrow navigation
+* ensure full responsiveness
+* integrate PWA manifest + service worker
+
+This will give you the exact “reference mode” experience you described.
+
+Which option do you choose?
