@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oscilloscope Earth</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      overflow: hidden;
+      background: #000;
+      font-family: 'Courier New', monospace;
+    }
+    #container {
+      width: 100vw;
+      height: 100vh;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // Simplified coastline data (GeoJSON-like format)
+    // This is a heavily simplified version - you'd use real coastline data for production
+    const coastlines = {
+      // Format: [longitude, latitude] pairs for each continent
+      northAmerica: [
+        [-168, 65], [-156, 71], [-140, 69], [-130, 54], [-125, 49], [-123, 48],
+        [-124, 40], [-120, 34], [-117, 32], [-115, 31], [-112, 31], [-108, 31],
+        [-106, 31], [-97, 26], [-94, 29], [-90, 29], [-85, 30], [-81, 31],
+        [-80, 27], [-81, 25], [-82, 24], [-88, 18], [-91, 18], [-97, 18],
+        [-105, 21], [-112, 24], [-117, 32], [-120, 34], [-124, 40], [-123, 48],
+        [-125, 49], [-130, 54], [-140, 60], [-150, 61], [-160, 55], [-165, 64],
+        [-168, 65]
+      ],
+      southAmerica: [
+        [-81, 9], [-79, 8], [-77, 0], [-75, -10], [-76, -18], [-70, -18],
+        [-70, -30], [-72, -42], [-74, -52], [-68, -55], [-65, -55], [-58, -51],
+        [-53, -32], [-48, -28], [-44, -23], [-43, -22], [-38, -13], [-35, -8],
+        [-34, -3], [-47, -1], [-52, 2], [-58, 4], [-62, 10], [-70, 12],
+        [-77, 8], [-81, 9]
+      ],
+      europe: [
+        [-10, 62], [-6, 58], [-5, 50], [1, 51], [4, 53], [7, 54], [10, 54],
+        [13, 55], [15, 54], [20, 54], [24, 60], [28, 70], [26, 71], [20, 69],
+        [15, 69], [10, 70], [5, 70], [0, 68], [-5, 67], [-10, 62]
+      ],
+      africa: [
+        [-17, 33], [-13, 29], [-8, 28], [-5, 36], [3, 37], [10, 37], [12, 32],
+        [25, 31], [32, 31], [35, 33], [37, 31], [40, 15], [43, 12], [48, 12],
+        [51, 11], [51, 2], [42, -4], [40, -10], [35, -25], [32, -29], [29, -32],
+        [25, -34], [18, -34], [15, -30], [12, -17], [10, -5], [8, 5], [5, 10],
+        [-5, 5], [-15, 15], [-17, 21], [-16, 28], [-17, 33]
+      ],
+      asia: [
+        [26, 41], [30, 42], [35, 36], [40, 40], [45, 40], [50, 40], [55, 45],
+        [60, 50], [65, 55], [75, 55], [80, 52], [85, 50], [95, 52], [105, 53],
+        [115, 54], [125, 50], [130, 48], [140, 45], [145, 44], [148, 45], [150, 46],
+        [155, 55], [165, 60], [170, 64], [175, 66], [-175, 65], [-170, 63],
+        [-165, 54], [-155, 19], [-157, 21], [-158, 22], [-155, 19], [120, 10],
+        [110, 2], [105, 0], [100, 5], [95, 10], [90, 22], [85, 27], [80, 30],
+        [75, 37], [70, 38], [60, 38], [50, 40], [45, 40], [40, 40], [35, 36],
+        [30, 42], [26, 41]
+      ],
+      australia: [
+        [113, -22], [114, -26], [115, -32], [116, -35], [118, -35], [125, -34],
+        [130, -32], [135, -35], [138, -35], [141, -38], [145, -38], [150, -35],
+        [153, -28], [153, -25], [150, -20], [145, -15], [142, -11], [137, -12],
+        [130, -12], [125, -14], [120, -18], [115, -20], [113, -22]
+      ]
+    };
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      50,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
+    camera.position.z = 4;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000);
+    document.getElementById('container').appendChild(renderer.domElement);
+
+    // Create globe group (everything rotates together)
+    const globeGroup = new THREE.Group();
+    scene.add(globeGroup);
+
+    // Convert lat/lon to 3D sphere coordinates
+    function latLonToVector3(lon, lat, radius) {
+      const phi = (90 - lat) * (Math.PI / 180);
+      const theta = (lon + 180) * (Math.PI / 180);
+      const x = -(radius * Math.sin(phi) * Math.cos(theta));
+      const z = radius * Math.sin(phi) * Math.sin(theta);
+      const y = radius * Math.cos(phi);
+      return new THREE.Vector3(x, y, z);
+    }
+
+    // Create glowing line material
+    function createGlowMaterial(color = 0x00ff88) {
+      return new THREE.LineBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.8,
+        linewidth: 2
+      });
+    }
+
+    // Draw coastline
+    function drawCoastline(coordinates, radius = 1.5) {
+      const points = [];
+      for (let i = 0; i < coordinates.length; i++) {
+        const [lon, lat] = coordinates[i];
+        points.push(latLonToVector3(lon, lat, radius));
+      }
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = createGlowMaterial(0x00ffaa);
+      const line = new THREE.Line(geometry, material);
+      return line;
+    }
+
+    // Add all coastlines
+    const allLines = [];
+    Object.values(coastlines).forEach(coords => {
+      const line = drawCoastline(coords);
+      globeGroup.add(line);
+      allLines.push(line);
+    });
+
+    // Add latitude/longitude grid for that oscilloscope look
+    const gridColor = 0x004444;
+    const gridRadius = 1.5;
+
+    // Latitude circles
+    for (let lat = -80; lat <= 80; lat += 20) {
+      const radius = gridRadius * Math.cos(lat * Math.PI / 180);
+      const y = gridRadius * Math.sin(lat * Math.PI / 180);
+      const segments = 64;
+      const points = [];
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        points.push(new THREE.Vector3(
+          radius * Math.cos(theta),
+          y,
+          radius * Math.sin(theta)
+        ));
+      }
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = createGlowMaterial(gridColor);
+      material.opacity = 0.3;
+      const line = new THREE.Line(geometry, material);
+      globeGroup.add(line);
+    }
+
+    // Longitude lines
+    for (let lon = 0; lon < 360; lon += 30) {
+      const segments = 64;
+      const points = [];
+      for (let i = 0; i <= segments; i++) {
+        const lat = -90 + (i / segments) * 180;
+        points.push(latLonToVector3(lon, lat, gridRadius));
+      }
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = createGlowMaterial(gridColor);
+      material.opacity = 0.3;
+      const line = new THREE.Line(geometry, material);
+      globeGroup.add(line);
+    }
+
+    // Add glow effect using bloom-like shader
+    const glowGeometry = new THREE.SphereGeometry(1.52, 32, 32);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00ff88,
+      transparent: true,
+      opacity: 0.05,
+      side: THREE.BackSide
+    });
+    const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+    globeGroup.add(glowMesh);
+
+    // Mouse/touch controls for rotation
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let rotation = { x: 0, y: 0 };
+    let targetRotation = { x: 0, y: 0 };
+    let autoRotate = true;
+
+    // Mouse events
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      autoRotate = false;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    renderer.domElement.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        const deltaX = e.clientX - previousMousePosition.x;
+        const deltaY = e.clientY - previousMousePosition.y;
+        targetRotation.y += deltaX * 0.01;
+        targetRotation.x += deltaY * 0.01;
+        targetRotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, targetRotation.x));
+        previousMousePosition = { x: e.clientX, y: e.clientY };
+      }
+    });
+
+    renderer.domElement.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    // Touch events
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+
+    renderer.domElement.addEventListener('touchstart', (e) => {
+      autoRotate = false;
+      lastTouchX = e.touches[0].clientX;
+      lastTouchY = e.touches[0].clientY;
+      e.preventDefault();
+    });
+
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      const deltaX = e.touches[0].clientX - lastTouchX;
+      const deltaY = e.touches[0].clientY - lastTouchY;
+      targetRotation.y += deltaX * 0.01;
+      targetRotation.x += deltaY * 0.01;
+      targetRotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, targetRotation.x));
+      lastTouchX = e.touches[0].clientX;
+      lastTouchY = e.touches[0].clientY;
+      e.preventDefault();
+    });
+
+    // Zoom with mouse wheel
+    renderer.domElement.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      camera.position.z += e.deltaY * 0.005;
+      camera.position.z = Math.max(2, Math.min(8, camera.position.z));
+    });
+
+    // Pinch zoom for mobile
+    let lastPinchDistance = 0;
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (lastPinchDistance > 0) {
+          const delta = distance - lastPinchDistance;
+          camera.position.z -= delta * 0.01;
+          camera.position.z = Math.max(2, Math.min(8, camera.position.z));
+        }
+        lastPinchDistance = distance;
+        e.preventDefault();
+      }
+    });
+
+    renderer.domElement.addEventListener('touchend', () => {
+      lastPinchDistance = 0;
+    });
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Auto-rotate if not being dragged
+      if (autoRotate) {
+        targetRotation.y += 0.005;
+      }
+
+      // Smooth rotation interpolation
+      rotation.x += (targetRotation.x - rotation.x) * 0.1;
+      rotation.y += (targetRotation.y - rotation.y) * 0.1;
+
+      globeGroup.rotation.x = rotation.x;
+      globeGroup.rotation.y = rotation.y;
+
+      renderer.render(scene, camera);
+    }
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Start animation
+    animate();
+  </script>
+</body>
+</html>
