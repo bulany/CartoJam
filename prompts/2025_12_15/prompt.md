@@ -1,0 +1,7 @@
+I really like what you've done here!
+I want to stop and slow down here and try to understand it more.
+Maybe the first thing we could start with is just the initial "scale". I notice on the iphone the globe appears slightly "further away" on the first viewing (at least it seems that way to me).
+Do you think you could show me in the code what controls that initial size of the globe and just give me a simple button in the corner (maybe somehow still in the visual style) that toggles between 3 different values of that initial zoom.
+Also I do like it how after one stops dragging the globe it goes back to the intial motion but do you think you could make it so that none of that initial motion is preserved and it either takes on whatever momentum the user gives it to spin or else just stops if they don't really push it much.
+Finally maybe you could give me a button in the other corner that toggles through 3 or four different colour choices. I think I would love to see what it looks like in an almost white-washed-out-blue colour that I think I have seen used in some of those old films. Maybe there could also be a red one. And what do you think - could there be an equivalent "light mode" if we assume that the classic green oscilloscope on black is the dark mode, what would an equivalent light mode look like. Maybe the button could toggle through those dark mode options and then a couple of light mode ones.
+Thank you! 
