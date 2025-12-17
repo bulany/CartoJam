@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Global Defense Network v2.0</title>
+    
+    <!-- 1. Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tailwind Configuration for Custom Fonts/Colors -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'crt-green': '#0f0',
+                        'crt-blue': '#00ffaa',
+                    },
+                    fontFamily: {
+                        mono: ['"Courier New"', 'Courier', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* CSS Extras that are tricky in pure utility classes */
+        body { 
+            overflow: hidden; 
+            background-color: #000; 
+        }
+
+        /* The CRT Monitor Overlay Effect */
+        #crt-overlay {
+            pointer-events: none;
+            background: 
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.6) 100%);
+            background-size: 100% 4px, 100% 100%;
+        }
+
+        /* Custom scrollbar hiding just in case */
+        ::-webkit-scrollbar { display: none; }
+        
+        /* Button hover glow effect */
+        .btn-retro {
+            transition: all 0.2s;
+        }
+        .btn-retro:active {
+            transform: scale(0.95);
+        }
+    </style>
+
+    <!-- Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body class="font-mono text-xs md:text-sm text-crt-green selection:bg-crt-green selection:text-black">
+
+    <!-- CRT Overlay -->
+    <div id="crt-overlay" class="absolute inset-0 z-10 w-full h-full"></div>
+
+    <!-- Loading Screen -->
+    <div id="loading" class="absolute inset-0 flex items-center justify-center z-20 bg-black text-crt-green">
+        <div class="text-center animate-pulse">
+            <h1 class="text-2xl mb-2">INITIALIZING UPLINK...</h1>
+            <p>[ESTABLISHING SECURE HANDSHAKE]</p>
+        </div>
+    </div>
+
+    <!-- UI: Top Left Info -->
+    <div class="absolute top-4 left-4 z-30 pointer-events-none opacity-80 hidden md:block">
+        <div class="border-l-2 border-current pl-2">
+            <p>SYS.STATUS: <span id="sys-status">ONLINE</span></p>
+            <p>COORDS: <span id="coords">00.00.00</span></p>
+        </div>
+    </div>
+
+    <!-- UI: Zoom Controls (Bottom Left) -->
+    <div class="absolute bottom-4 left-4 z-30 flex flex-col gap-2">
+        <div class="bg-black/80 border border-current p-2 rounded shadow-[0_0_10px_rgba(0,255,0,0.2)] backdrop-blur-sm">
+            <span class="block mb-2 text-[10px] opacity-70 border-b border-current/30 pb-1">OPTICS</span>
+            <button id="btn-zoom" class="btn-retro px-3 py-1 border border-current hover:bg-current hover:text-black font-bold w-full mb-1">
+                TOGGLE ZOOM
+            </button>
+            <div class="flex justify-between text-[10px] opacity-50 px-1">
+                <span>NEAR</span><span>FAR</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI: Animation & Theme Controls (Bottom Right) -->
+    <div class="absolute bottom-4 right-4 z-30 flex flex-col items-end gap-2">
+        
+        <!-- Theme Toggle -->
+        <div class="bg-black/80 border border-current p-2 rounded shadow-[0_0_10px_rgba(0,255,0,0.2)] backdrop-blur-sm mb-2">
+             <span class="block mb-2 text-[10px] opacity-70 border-b border-current/30 pb-1 text-right">VISUALS</span>
+             <button id="btn-theme" class="btn-retro px-3 py-1 border border-current hover:bg-current hover:text-black font-bold uppercase w-32">
+                THEME: TAC-OPS
+            </button>
+        </div>
+
+        <!-- Animation Toggle -->
+        <div class="bg-black/80 border border-current p-2 rounded shadow-[0_0_10px_rgba(0,255,0,0.2)] backdrop-blur-sm">
+            <span class="block mb-2 text-[10px] opacity-70 border-b border-current/30 pb-1 text-right">TELEMETRY</span>
+            <button id="btn-anim" class="btn-retro px-3 py-1 border border-current hover:bg-current hover:text-black font-bold uppercase w-48 mb-1">
+                REVEAL: EQUATOR
+            </button>
+            <div id="anim-progress-bar" class="w-full h-1 bg-current/20 mt-1">
+                <div id="anim-bar-fill" class="h-full bg-current w-0 transition-all duration-75"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { GlitchPass } from 'three/addons/postprocessing/GlitchPass.js';
+
+        // --- CONFIGURATION ---
+        const GLOBE_RADIUS = 20;
+        
+        // Theme Definitions
+        const themes = {
+            dark: [
+                {
+                    id: 0,
+                    name: "TAC-OPS",
+                    color: 0x00ffaa,
+                    bg: 0x000000,
+                    bloomStrength: 1.2,
+                    blending: THREE.AdditiveBlending,
+                    fog: 0x000000,
+                    uiColor: '#0f0'
+                },
+                {
+                    id: 1,
+                    name: "ARCHIVE",
+                    color: 0x88ccff,
+                    bg: 0x05101a,
+                    bloomStrength: 2.5,
+                    blending: THREE.AdditiveBlending,
+                    fog: 0x05101a,
+                    uiColor: '#88ccff'
+                }
+            ],
+            light: [
+                {
+                    id: 2,
+                    name: "BLUEPRINT",
+                    color: 0x003366,
+                    bg: 0xe0e6ed,
+                    bloomStrength: 0.0,
+                    blending: THREE.NormalBlending,
+                    fog: 0xe0e6ed,
+                    uiColor: '#003366'
+                },
+                {
+                    id: 3,
+                    name: "SURVEYOR", // Alternative Light Mode
+                    color: 0x8B4513, // SaddleBrown
+                    bg: 0xF5F5DC,    // Beige
+                    bloomStrength: 0.0,
+                    blending: THREE.NormalBlending, // Normal blend for light bg
+                    fog: 0xF5F5DC,
+                    uiColor: '#5c3a21'
+                }
+            ]
+        };
+
+        // Flatten themes for easy cycling
+        const allThemes = [...themes.dark, ...themes.light];
+        let currentThemeIndex = 0;
+
+        // Zoom Levels
+        const zoomLevels = [70, 40, 110];
+        let currentZoomIndex = 0;
+        let targetCamZ = 70;
+
+        // Animation Modes
+        // 0: Equator, 1: Top-Down, 2: Bottom-Up, 3: Front-Back, 4: Back-Front
+        const animModes = [
+            { id: 0, label: "REVEAL: EQUATOR" },
+            { id: 1, label: "REVEAL: N. POLE" },
+            { id: 2, label: "REVEAL: S. POLE" },
+            { id: 3, label: "REVEAL: PROXIMITY" }, // Front to Back
+            { id: 4, label: "REVEAL: DISTAL" }     // Back to Front
+        ];
+        let currentAnimMode = 0;
+
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 70;
+        camera.position.y = 20;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 1.0;
+
+        // --- POST-PROCESSING ---
+        const composer = new EffectComposer(renderer);
+        
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0;
+        bloomPass.radius = 0.5;
+        composer.addPass(bloomPass);
+
+        // Glitch Pass
+        const glitchPass = new GlitchPass();
+        glitchPass.goWild = false; // "Wild" mode is too intense
+        glitchPass.enabled = false; // Start disabled
+        composer.addPass(glitchPass);
+
+        // --- GLOBAL REFERENCES ---
+        let globeMesh;
+        let coreMesh;
+
+        // --- DATA LOADING ---
+        fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_coastline.geojson')
+            .then(res => res.json())
+            .then(data => {
+                createHologramGlobe(data);
+                applyTheme(currentThemeIndex);
+                document.getElementById('loading').style.display = 'none';
+                startAnimation();
+            })
+            .catch(err => {
+                document.getElementById('loading').innerHTML = "<span class='text-red-500'>DATA CORRUPTION DETECTED.</span>";
+                console.error(err);
+            });
+
+        // --- GEOMETRY & SHADER ---
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            return new THREE.Vector3(x, y, z);
+        }
+
+        function createHologramGlobe(geoJson) {
+            const points = [];
+            geoJson.features.forEach(feature => {
+                const type = feature.geometry.type;
+                let coordsList = type === 'LineString' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+
+                coordsList.forEach(line => {
+                    for (let i = 0; i < line.length - 1; i++) {
+                        const p1 = line[i];
+                        const p2 = line[i+1];
+                        const v1 = latLonToVector3(p1[1], p1[0], GLOBE_RADIUS);
+                        const v2 = latLonToVector3(p2[1], p2[0], GLOBE_RADIUS);
+                        points.push(v1.x, v1.y, v1.z, v2.x, v2.y, v2.z);
+                    }
+                });
+            });
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+
+            // UPGRADED SHADER
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    color: { value: new THREE.Color(allThemes[0].color) },
+                    uReveal: { value: 0.0 }, 
+                    uGlobeRadius: { value: GLOBE_RADIUS },
+                    uAnimMode: { value: 0 } // 0=Eq, 1=Top, 2=Bot, 3=Front, 4=Back
+                },
+                vertexShader: `
+                    uniform float uReveal;
+                    uniform float uGlobeRadius;
+                    uniform int uAnimMode;
+                    varying float vVisible;
+
+                    void main() {
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        gl_Position = projectionMatrix * mvPosition;
+
+                        float progress = 0.0;
+                        
+                        // Normalized Height (-1 to 1)
+                        float ny = position.y / uGlobeRadius;
+                        
+                        // Normalized Depth (Approximate based on model view, simplified)
+                        // Actually, easier to use raw Z if we assume standard rotation, 
+                        // but since the globe spins, "Front" depends on Camera. 
+                        // We will use View Space Z (mvPosition.z) for Front/Back reveal.
+                        
+                        // MODE 0: Equator Outwards (Original)
+                        if (uAnimMode == 0) {
+                            progress = abs(ny); 
+                        }
+                        // MODE 1: Top to Bottom
+                        else if (uAnimMode == 1) {
+                            progress = (uGlobeRadius - position.y) / (2.0 * uGlobeRadius);
+                        }
+                        // MODE 2: Bottom to Top
+                        else if (uAnimMode == 2) {
+                            progress = (position.y + uGlobeRadius) / (2.0 * uGlobeRadius);
+                        }
+                        // MODE 3: Front to Back (View Space)
+                        else if (uAnimMode == 3) {
+                            // mvPosition.z is negative in front of camera
+                            // We normalize it somewhat arbitrarily based on radius
+                            float zDist = -mvPosition.z; 
+                            // Map typical range roughly
+                            progress = smoothstep(20.0, 100.0, zDist);
+                        }
+                        // MODE 4: Back to Front
+                        else if (uAnimMode == 4) {
+                            float zDist = -mvPosition.z;
+                            progress = 1.0 - smoothstep(20.0, 100.0, zDist);
+                        }
+
+                        // Apply Reveal Logic
+                        // For Modes 1,2,3,4 we map 0..1 linear.
+                        // For Mode 0, we mapped 0..1 (equator to pole).
+                        
+                        vVisible = smoothstep(uReveal, uReveal - 0.1, progress);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 color;
+                    varying float vVisible;
+
+                    void main() {
+                        if (vVisible <= 0.01) discard;
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `,
+                transparent: true,
+                depthTest: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            globeMesh = new THREE.LineSegments(geometry, material);
+            scene.add(globeMesh);
+
+            // Core sphere (masks lines on the back)
+            const coreGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 0.98, 32, 32);
+            const coreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            coreMesh = new THREE.Mesh(coreGeo, coreMat);
+            scene.add(coreMesh);
+        }
+
+        // --- APP STATE & LOGIC ---
+
+        let revealProgress = 0.0;
+        let isOpening = true;
+
+        // Apply Theme
+        function applyTheme(index) {
+            const t = allThemes[index];
+            const uiColor = t.uiColor;
+
+            // 1. Update 3D Scene
+            scene.background = new THREE.Color(t.bg);
+            scene.fog.color.setHex(t.fog);
+            if(coreMesh) coreMesh.material.color.setHex(t.bg);
+            if(globeMesh) {
+                globeMesh.material.uniforms.color.value.setHex(t.color);
+                globeMesh.material.blending = t.blending;
+                // Important: Update material needs update flag if blending changes
+                globeMesh.material.needsUpdate = true; 
+            }
+            bloomPass.strength = t.bloomStrength;
+
+            // 2. Update UI (via DOM)
+            document.body.style.color = uiColor;
+            document.querySelectorAll('button').forEach(btn => {
+                btn.style.borderColor = uiColor;
+                btn.style.color = uiColor;
+            });
+            
+            // Handle hover states for buttons using JS because Tailwind classes are static
+            const styleId = 'dynamic-theme-style';
+            let styleTag = document.getElementById(styleId);
+            if (!styleTag) {
+                styleTag = document.createElement('style');
+                styleTag.id = styleId;
+                document.head.appendChild(styleTag);
+            }
+            styleTag.innerHTML = `
+                .btn-retro:hover { background-color: ${uiColor}; color: ${t.bg === 0xe0e6ed || t.bg === 0xF5F5DC ? '#000' : '#000'} !important; }
+                #anim-bar-fill { background-color: ${uiColor}; }
+            `;
+
+            document.getElementById('btn-theme').innerText = `THEME: ${t.name}`;
+        }
+
+        // Cycle Theme
+        document.getElementById('btn-theme').addEventListener('click', () => {
+            currentThemeIndex = (currentThemeIndex + 1) % allThemes.length;
+            applyTheme(currentThemeIndex);
+        });
+
+        // Cycle Animation Mode
+        document.getElementById('btn-anim').addEventListener('click', () => {
+            currentAnimMode = (currentAnimMode + 1) % animModes.length;
+            document.getElementById('btn-anim').innerText = animModes[currentAnimMode].label;
+            restartAnimation();
+        });
+
+        // Zoom Toggle
+        document.getElementById('btn-zoom').addEventListener('click', () => {
+            currentZoomIndex = (currentZoomIndex + 1) % zoomLevels.length;
+            targetCamZ = zoomLevels[currentZoomIndex];
+        });
+
+        function restartAnimation() {
+            revealProgress = 0.0;
+            isOpening = true;
+            if(globeMesh) {
+                globeMesh.material.uniforms.uAnimMode.value = currentAnimMode;
+            }
+        }
+        
+        function startAnimation() {
+            restartAnimation();
+        }
+
+        // --- GLITCH TIMER LOGIC ---
+        let glitchTimer = 0;
+        let nextGlitchTime = Math.random() * 200 + 100; // Frames until next glitch
+        let isGlitching = false;
+        let glitchDuration = 0;
+
+        function updateGlitch() {
+            // Count frames
+            glitchTimer++;
+
+            if (!isGlitching && glitchTimer > nextGlitchTime) {
+                // Trigger Glitch
+                isGlitching = true;
+                glitchPass.enabled = true;
+                glitchDuration = Math.random() * 20 + 5; // 5 to 25 frames
+                glitchTimer = 0;
+            } else if (isGlitching) {
+                if (glitchTimer > glitchDuration) {
+                    // End Glitch
+                    isGlitching = false;
+                    glitchPass.enabled = false;
+                    glitchTimer = 0;
+                    nextGlitchTime = Math.random() * 300 + 120; // Reset random interval
+                }
+            }
+        }
+
+        // --- MAIN LOOP ---
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            controls.update();
+
+            // 1. Reveal Animation
+            if (globeMesh && isOpening) {
+                revealProgress += 0.006; 
+                globeMesh.material.uniforms.uReveal.value = revealProgress;
+                
+                // Update UI Progress Bar
+                const pct = Math.min(revealProgress * 100, 100);
+                document.getElementById('anim-bar-fill').style.width = pct + '%';
+
+                if (revealProgress >= 1.3) {
+                    isOpening = false;
+                }
+            }
+
+            // 2. Camera Zoom Interpolation (Lerp)
+            // Smoothly move current Z to target Z
+            if (Math.abs(camera.position.z - targetCamZ) > 0.1) {
+                camera.position.z += (targetCamZ - camera.position.z) * 0.05;
+            }
+
+            // 3. Update Random Coordinates in UI (Flavor text)
+            if (Math.random() > 0.95) {
+                const lat = (Math.random() * 180 - 90).toFixed(2);
+                const lon = (Math.random() * 360 - 180).toFixed(2);
+                document.getElementById('coords').innerText = `${lat} // ${lon}`;
+            }
+
+            // 4. Handle Glitch
+            updateGlitch();
+
+            composer.render();
+        }
+
+        // Handle Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
