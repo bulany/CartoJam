@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Global Flight Command</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; color: #0f0; }
+        #crt-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%), radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.4) 100%);
+            background-size: 100% 3px, 100% 100%; }
+
+        /* UI Panels */
+        .panel { position: absolute; background: rgba(0, 20, 0, 0.8); border: 1px solid #0f0; padding: 15px; z-index: 20; box-shadow: 0 0 15px rgba(0,255,0,0.2); }
+        #input-panel { top: 20px; left: 20px; width: 280px; }
+        #status-panel { top: 20px; right: 20px; text-align: right; font-size: 0.8rem; pointer-events: none; }
+        #timeline-panel { bottom: 30px; left: 50%; transform: translateX(-50%); width: 80%; max-width: 600px; display: none; }
+
+        input { background: #000; border: 1px solid #0f0; color: #0f0; padding: 5px; width: calc(100% - 12px); margin-bottom: 10px; }
+        button { background: #0f0; color: #000; border: none; padding: 8px 15px; cursor: pointer; font-weight: bold; width: 100%; }
+        button:hover { background: #0a0; }
+        
+        input[type=range] { width: 100%; accent-color: #0f0; background: transparent; cursor: pointer; }
+        .label { font-size: 0.7rem; text-transform: uppercase; margin-bottom: 5px; display: block; opacity: 0.8; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 5; }
+    </style>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="crt-overlay"></div>
+    <div id="loading">SYSTEM READY...</div>
+
+    <!-- Input UI -->
+    <div id="input-panel" class="panel">
+        <span class="label">Itinerary Input</span>
+        <input type="text" id="flight-input" placeholder="e.g. SQ24, QF9 (Comma separated)">
+        <button id="btn-done">INITIALIZE UPLINK</button>
+        <button id="btn-share" style="margin-top:5px; background: transparent; color: #0f0; border: 1px solid #0f0;">COPY SHARE LINK</button>
+    </div>
+
+    <!-- Status UI -->
+    <div id="status-panel" class="panel">
+        <div>ELAPSED: <span id="stat-elapsed">00:00</span></div>
+        <div>ORIGIN: <span id="stat-origin">--:--</span></div>
+        <div>DEST: <span id="stat-dest">--:--</span></div>
+    </div>
+
+    <!-- Timeline UI -->
+    <div id="timeline-panel" class="panel">
+        <span class="label" id="timeline-label">Mission Progress</span>
+        <input type="range" id="time-slider" min="0" max="1000" value="0">
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- CONSTANTS & STATE ---
+        const GLOBE_RADIUS = 20;
+        const ARC_HEIGHT = 8;
+        let itinerary = [];
+        let flightObjects = []; // Stores the meshes and curves
+        
+        // Mock Database for the "Demo"
+        const MOCK_FLIGHTS = {
+            "SQ24": { from: "SIN", to: "JFK", fLat: 1.35, fLon: 103.99, tLat: 40.64, tLon: -73.77, dur: 18 },
+            "QF9": { from: "PER", to: "LHR", fLat: -31.93, fLon: 115.96, tLat: 51.47, tLon: -0.45, dur: 17 },
+            "BA117": { from: "LHR", to: "JFK", fLat: 51.47, fLon: -0.45, tLat: 40.64, tLon: -73.77, dur: 8 }
+        };
+
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(40, 30, 50);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.5;
+
+        // Bloom (Glow)
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloom.strength = 1.5;
+        composer.addPass(bloom);
+
+        // --- GEOMETRY HELPERS ---
+
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            return new THREE.Vector3(
+                -(radius * Math.sin(phi) * Math.cos(theta)),
+                (radius * Math.cos(phi)),
+                (radius * Math.sin(phi) * Math.sin(theta))
+            );
+        }
+
+        // --- CORE FUNCTIONALITY ---
+
+        async function initGlobe() {
+            const res = await fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_coastline.geojson');
+            const data = await res.json();
+            
+            const points = [];
+            data.features.forEach(f => {
+                const coords = f.geometry.type === 'LineString' ? [f.geometry.coordinates] : f.geometry.coordinates;
+                coords.forEach(line => {
+                    for (let i = 0; i < line.length - 1; i++) {
+                        const v1 = latLonToVector3(line[i][1], line[i][0], GLOBE_RADIUS);
+                        const v2 = latLonToVector3(line[i+1][1], line[i+1][0], GLOBE_RADIUS);
+                        points.push(v1, v2);
+                    }
+                });
+            });
+
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            const mat = new THREE.LineBasicMaterial({ color: 0x004422 });
+            scene.add(new THREE.LineSegments(geo, mat));
+            
+            // Faint sphere for depth
+            scene.add(new THREE.Mesh(
+                new THREE.SphereGeometry(GLOBE_RADIUS * 0.98, 32, 32),
+                new THREE.MeshBasicMaterial({ color: 0x000500, transparent: true, opacity: 0.8 })
+            ));
+
+            document.getElementById('loading').style.display = 'none';
+            
+            // Check for shared URL data
+            if(window.location.hash) {
+                const codes = window.location.hash.substring(1).split(',');
+                document.getElementById('flight-input').value = codes.join(', ');
+                processItinerary(codes);
+            }
+        }
+
+        function createFlightArc(flightData, index) {
+            const start = latLonToVector3(flightData.fLat, flightData.fLon, GLOBE_RADIUS);
+            const end = latLonToVector3(flightData.tLat, flightData.tLon, GLOBE_RADIUS);
+            
+            // Calculate mid-point and pull it outwards for the arc
+            const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+            const midLen = mid.length();
+            mid.normalize().multiplyScalar(GLOBE_RADIUS + ARC_HEIGHT);
+
+            const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+            
+            // Draw the path line
+            const points = curve.getPoints(50);
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x00ffaa, transparent: true, opacity: 0.4 });
+            const line = new THREE.Line(lineGeo, lineMat);
+            scene.add(line);
+
+            // Draw Airport Dots & Labels
+            [ {pos: start, code: flightData.from}, {pos: end, code: flightData.to} ].forEach(ap => {
+                const dot = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ffaa }));
+                dot.position.copy(ap.pos);
+                scene.add(dot);
+            });
+
+            // The Aircraft Pulse
+            const pulse = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            scene.add(pulse);
+
+            return { curve, pulse, data: flightData };
+        }
+
+        function processItinerary(codes) {
+            // Clear existing
+            flightObjects.forEach(obj => scene.remove(obj.line, obj.pulse));
+            flightObjects = [];
+
+            let totalDuration = 0;
+            codes.forEach((code, i) => {
+                const cleanCode = code.trim().toUpperCase();
+                // Use mock data or generate a random one if not found
+                const data = MOCK_FLIGHTS[cleanCode] || {
+                    from: "LOC", to: "DST",
+                    fLat: (Math.random() - 0.5) * 100, fLon: (Math.random() - 0.5) * 200,
+                    tLat: (Math.random() - 0.5) * 100, tLon: (Math.random() - 0.5) * 200,
+                    dur: 5 + Math.random() * 10
+                };
+                
+                const flightObj = createFlightArc(data, i);
+                flightObjects.push(flightObj);
+                totalDuration += data.dur;
+            });
+
+            document.getElementById('timeline-panel').style.display = 'block';
+            window.location.hash = codes.join(',');
+        }
+
+        // --- INTERACTION ---
+
+        document.getElementById('btn-done').addEventListener('click', () => {
+            const input = document.getElementById('flight-input').value;
+            if(!input) return;
+            processItinerary(input.split(','));
+            controls.autoRotate = false;
+        });
+
+        document.getElementById('btn-share').addEventListener('click', () => {
+            navigator.clipboard.writeText(window.location.href);
+            alert("URL copied to clipboard!");
+        });
+
+        const slider = document.getElementById('time-slider');
+        slider.addEventListener('input', (e) => {
+            const t = e.target.value / 1000; // 0 to 1
+            
+            // Simple logic: Divide total time by number of flights
+            // In a real app, you'd calculate based on takeoff/landing timestamps
+            const segmentT = 1 / flightObjects.length;
+            
+            flightObjects.forEach((obj, i) => {
+                const startRange = i * segmentT;
+                const endRange = (i + 1) * segmentT;
+                
+                if (t >= startRange && t <= endRange) {
+                    const localT = (t - startRange) / segmentT;
+                    const pos = obj.curve.getPoint(localT);
+                    obj.pulse.position.copy(pos);
+                    obj.pulse.visible = true;
+                } else {
+                    obj.pulse.visible = false;
+                }
+            });
+
+            // Update Stats
+            const totalHours = flightObjects.reduce((a, b) => a + b.data.dur, 0);
+            const currentHours = (t * totalHours).toFixed(1);
+            document.getElementById('stat-elapsed').innerText = `${currentHours} HR`;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            composer.render();
+        }
+
+        initGlobe();
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
