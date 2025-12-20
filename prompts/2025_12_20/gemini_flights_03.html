@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Global Flight Route Viewer v2.0</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+/* --- CORE STYLES --- */
+body {
+    margin: 0;
+    overflow: hidden;
+    background: black;
+    font-family: "Courier New", monospace;
+    color: #0f0;
+}
+
+/* --- CRT & SCANLINE EFFECTS --- */
+#crt {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    background:
+        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+        radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.6) 100%);
+    background-size: 100% 3px, 100% 100%;
+}
+
+/* --- UI PANELS --- */
+.panel {
+    position: absolute;
+    background: rgba(0, 15, 0, 0.9);
+    border: 1px solid #0f0;
+    padding: 12px;
+    z-index: 20;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+#input-panel { top: 20px; left: 20px; width: 300px; }
+#timeline-panel { bottom: 30px; left: 50%; transform: translateX(-50%); width: 60%; display: none; }
+
+/* --- BUTTONS & SLIDERS --- */
+button {
+    width: 100%;
+    margin-top: 8px;
+    background: #0f0;
+    color: black;
+    border: 1px solid #0f0;
+    padding: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    font-family: inherit;
+    text-transform: uppercase;
+}
+button:hover { background: #cfc; }
+button:active { background: #0a0; color: white; }
+
+button.secondary {
+    background: transparent;
+    color: #0f0;
+    font-size: 0.8em;
+    margin-top: 5px;
+}
+button.secondary:hover { background: rgba(0, 255, 0, 0.1); }
+
+input[type=range] { 
+    width: 100%; 
+    accent-color: #0f0; 
+    cursor: ew-resize;
+}
+
+/* --- LOADING SCREEN --- */
+#loader {
+    position: absolute;
+    inset: 0;
+    background: black;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #0f0;
+    font-size: 1.5em;
+}
+.blink { animation: blinker 1s linear infinite; }
+@keyframes blinker { 50% { opacity: 0; } }
+
+/* --- INPUT HIGHLIGHTER SYSTEM --- */
+.input-container {
+    position: relative;
+    width: 100%;
+    height: 60px; /* Multi-line capability */
+    margin-top: 6px;
+    background: black;
+    border: 1px solid #0f0;
+}
+
+/* The backdrop handles the coloring */
+.input-backdrop {
+    position: absolute;
+    inset: 0;
+    padding: 6px;
+    z-index: 1;
+    color: transparent; /* Text is usually transparent here, but we use spans for color */
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 14px;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* The actual textarea is transparent and sits on top */
+textarea#codes-input {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: transparent;
+    color: transparent; /* Hide text, show caret */
+    caret-color: #0f0;
+    border: none;
+    resize: none;
+    padding: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Syntax Highlighting Colors */
+.hl-valid { color: #0f0; text-shadow: 0 0 5px #0f0; }
+.hl-invalid { color: #f00; text-shadow: 0 0 2px #f00; text-decoration: line-through; }
+.hl-sep { color: #555; }
+
+/* --- HOVER TOOLTIP --- */
+#tooltip {
+    position: absolute;
+    display: none;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #0f0;
+    color: #0f0;
+    padding: 4px 8px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 50;
+    transform: translate(-50%, -150%); /* Center above cursor */
+    box-shadow: 0 0 5px #0f0;
+}
+</style>
+
+<!-- Import Maps -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- Retro Overlay -->
+<div id="crt"></div>
+
+<!-- Loading Screen -->
+<div id="loader">
+    <div>SYSTEM BOOT_</div>
+    <div style="margin-top:10px; font-size: 0.8em">INITIALISING UPLINK<span class="blink">...</span></div>
+</div>
+
+<!-- Hover Tooltip -->
+<div id="tooltip"></div>
+
+<!-- Control Panel -->
+<div id="input-panel" class="panel">
+    <div>FLIGHT PLAN [ENTER to EXEC]</div>
+    
+    <div class="input-container">
+        <div id="input-highlights" class="input-backdrop"></div>
+        <textarea id="codes-input" spellcheck="false" placeholder="TYP: JFK-LHR-HND"></textarea>
+    </div>
+
+    <button id="init">ESTABLISH ROUTE</button>
+    <button id="reset" class="secondary">RESET SYSTEM</button>
+    <button id="share" class="secondary">COPY UPLINK LINK</button>
+</div>
+
+<!-- Timeline Slider -->
+<div id="timeline-panel" class="panel">
+    <input type="range" id="scrubber" min="0" max="1000" value="0">
+    <div style="text-align:center; font-size:0.8em; margin-top:5px">ROUTE PROGRESS</div>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+
+// --- CONFIGURATION ---
+const GLOBE_RADIUS = 20;
+const COLOR_LAND = 0x00ff22;
+const COLOR_ROUTE = 0x00ffaa;
+const COLOR_DOT_ROUTE = 0xffffff;
+const COLOR_DOT_ARCHIVE = 0x0088ff; // Blue for recognised inputs
+const COLOR_DOT_ERROR = 0xff0000;
+
+// --- STATE ---
+let AIRPORTS = {};
+let routePoints = [];
+let routeLengths = [];
+let totalDistance = 0;
+// We use a map to track dots created by typing: Code -> Mesh
+let archiveDots = new Map(); 
+
+// --- SCENE SETUP ---
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(40,30,50);
+
+const renderer = new THREE.WebGLRenderer({antialias:false});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
+
+// Post Processing for Glow
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.2, 0.4, 0.85));
+
+// --- GROUPS ---
+const globeGroup = new THREE.Group();
+const routeGroup = new THREE.Group(); // Stores lines and the white route dot
+const archiveGroup = new THREE.Group(); // Stores the blue airport dots
+scene.add(globeGroup);
+scene.add(routeGroup);
+scene.add(archiveGroup);
+
+// The moving white dot
+const progressDot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.4, 8, 8),
+    new THREE.MeshBasicMaterial({color: COLOR_DOT_ROUTE})
+);
+progressDot.visible = false; // Hidden by default
+routeGroup.add(progressDot);
+
+// --- UTILS ---
+function latLonToVec(lat, lon, r) {
+    const phi = (90-lat)*Math.PI/180;
+    const theta = (lon+180)*Math.PI/180;
+    return new THREE.Vector3(
+        -r*Math.sin(phi)*Math.cos(theta),
+        r*Math.cos(phi),
+        r*Math.sin(phi)*Math.sin(theta)
+    );
+}
+
+function greatCirclePoints(a, b, steps=64) {
+    const pts=[];
+    for(let i=0;i<=steps;i++){
+        const v=a.clone().lerp(b,i/steps).normalize().multiplyScalar(GLOBE_RADIUS);
+        pts.push(v);
+    }
+    return pts;
+}
+
+// --- DATA LOADING ---
+async function loadData() {
+    try {
+        const [coastRes, airportRes] = await Promise.all([
+            fetch("./ne_110m_coastline.geojson"),
+            fetch("./airports.json")
+        ]);
+
+        const coastData = await coastRes.json();
+        AIRPORTS = await airportRes.json();
+        window.AIRPORTS = AIRPORTS;
+
+        // Build Globe
+        const pts=[];
+        coastData.features.forEach(f=>{
+            const lines = f.geometry.type==="LineString" ? [f.geometry.coordinates] : f.geometry.coordinates;
+            lines.forEach(l=>{
+                for(let i=0;i<l.length-1;i++){
+                    pts.push(
+                        latLonToVec(l[i][1],l[i][0], GLOBE_RADIUS),
+                        latLonToVec(l[i+1][1],l[i+1][0], GLOBE_RADIUS)
+                    );
+                }
+            });
+        });
+        
+        globeGroup.add(new THREE.LineSegments(
+            new THREE.BufferGeometry().setFromPoints(pts),
+            new THREE.LineBasicMaterial({ color: COLOR_LAND, transparent: true, opacity: 0.6 })
+        ));
+
+        // Inner black sphere to block lines behind
+        globeGroup.add(new THREE.Mesh(
+            new THREE.SphereGeometry(GLOBE_RADIUS*0.98, 32, 32),
+            new THREE.MeshBasicMaterial({ color: 0x000500 })
+        ));
+
+        // Hide Loader
+        document.getElementById("loader").style.display = "none";
+
+        // Check URL for initial route
+        if(location.hash){
+            const cleanHash = location.hash.substring(1).replace(/,/g, '-');
+            document.getElementById("codes-input").value = cleanHash;
+            handleInput(); // Trigger visuals
+            initRoute(cleanHash.split("-"));
+        }
+
+    } catch (e) {
+        document.getElementById("loader").innerHTML = `<div style="color:red">UPLINK FAILED<br>MISSING DATA FILES</div>`;
+        console.error(e);
+    }
+}
+
+// --- LOGIC: ARCHIVE DOTS (BLUE LIGHTS) ---
+function updateArchiveDots(codes) {
+    // 1. Identify valid codes currently in input
+    const validCodes = new Set();
+    codes.forEach(c => {
+        if(AIRPORTS[c]) validCodes.add(c);
+    });
+
+    // 2. Remove dots that are no longer in input
+    for (const [code, mesh] of archiveDots) {
+        if (!validCodes.has(code)) {
+            archiveGroup.remove(mesh);
+            archiveDots.delete(code);
+        }
+    }
+
+    // 3. Add new dots
+    validCodes.forEach(code => {
+        if (!archiveDots.has(code)) {
+            const data = AIRPORTS[code];
+            const pos = latLonToVec(data.lat, data.lon, GLOBE_RADIUS);
+            
+            const mesh = new THREE.Mesh(
+                new THREE.SphereGeometry(0.3, 8, 8),
+                new THREE.MeshBasicMaterial({ color: COLOR_DOT_ARCHIVE })
+            );
+            mesh.position.copy(pos);
+            mesh.userData = { code: code, type: 'airport' }; // For Raycaster
+            
+            // "Flash" animation data
+            mesh.scale.set(0.1, 0.1, 0.1);
+            mesh.userData.flash = 0; 
+            
+            archiveGroup.add(mesh);
+            archiveDots.set(code, mesh);
+        }
+    });
+}
+
+// --- LOGIC: INPUT HANDLING & HIGHLIGHTING ---
+const inputArea = document.getElementById("codes-input");
+const highlightArea = document.getElementById("input-highlights");
+
+function handleInput() {
+    const raw = inputArea.value.toUpperCase(); // Force display uppercase logic in processing
+    
+    // Split by non-alphanumeric to find tokens, but keep separators for display
+    // Regex matches: ([A-Z0-9]+) OR ([^A-Z0-9]+)
+    const tokens = raw.split(/([A-Z0-9]+)/gi);
+    
+    let html = "";
+    let cleanCodes = [];
+
+    tokens.forEach(token => {
+        if(!token) return;
+        
+        // If it looks like an airport code (3-4 letters)
+        if(/^[A-Z0-9]{3,4}$/i.test(token)) {
+            const up = token.toUpperCase();
+            if(AIRPORTS[up]) {
+                html += `<span class="hl-valid">${up}</span>`;
+                cleanCodes.push(up);
+            } else {
+                html += `<span class="hl-invalid">${up}</span>`;
+            }
+        } else {
+            // Separators/Whitespace
+            html += `<span class="hl-sep">${token}</span>`;
+        }
+    });
+
+    highlightArea.innerHTML = html;
+    updateArchiveDots(cleanCodes);
+    return cleanCodes;
+}
+
+// Event Listeners for Input
+inputArea.addEventListener("input", handleInput);
+inputArea.addEventListener("scroll", () => {
+    highlightArea.scrollTop = inputArea.scrollTop;
+});
+inputArea.addEventListener("keydown", (e) => {
+    if(e.key === "Enter") {
+        e.preventDefault(); // Don't add newline
+        const codes = handleInput();
+        if(codes.length === 0) {
+            resetRoute();
+        } else {
+            initRoute(codes);
+        }
+    }
+});
+
+// --- LOGIC: ROUTE GENERATION ---
+function resetRoute() {
+    // Clear Lines
+    // Note: looping backwards or using clear() is safer
+    for(let i = routeGroup.children.length - 1; i >= 0; i--) {
+        const child = routeGroup.children[i];
+        if(child !== progressDot) {
+            routeGroup.remove(child);
+            if(child.geometry) child.geometry.dispose();
+        }
+    }
+    
+    // Reset State
+    routePoints = [];
+    routeLengths = [];
+    totalDistance = 0;
+    progressDot.visible = false;
+    
+    // Clear Input
+    inputArea.value = "";
+    highlightArea.innerHTML = "";
+    
+    // Clear Archive Dots
+    archiveGroup.clear();
+    archiveDots.clear();
+
+    // UI Updates
+    document.getElementById("timeline-panel").style.display = "none";
+    history.replaceState(null, "", location.pathname);
+}
+
+function initRoute(codes) {
+    // 1. Clean previous lines (but keep archive dots)
+    for(let i = routeGroup.children.length - 1; i >= 0; i--) {
+        const child = routeGroup.children[i];
+        if(child !== progressDot) routeGroup.remove(child);
+    }
+    routePoints = [];
+    routeLengths = [];
+    totalDistance = 0;
+
+    // 2. Filter Valid Codes
+    const validList = codes.filter(c => AIRPORTS[c]);
+    
+    if(validList.length < 2) {
+        progressDot.visible = false;
+        return; 
+    }
+
+    // 3. Build Route
+    for(let i=0; i<validList.length-1; i++){
+        const a = AIRPORTS[validList[i]];
+        const b = AIRPORTS[validList[i+1]];
+        
+        const v1 = latLonToVec(a.lat, a.lon, GLOBE_RADIUS);
+        const v2 = latLonToVec(b.lat, b.lon, GLOBE_RADIUS);
+        
+        const pts = greatCirclePoints(v1, v2);
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        
+        // Add Line
+        const line = new THREE.Line(geo, new THREE.LineBasicMaterial({color: COLOR_ROUTE}));
+        routeGroup.add(line);
+        
+        // Calculate Distance
+        const dist = v1.angleTo(v2) * 6371;
+        routePoints.push(pts);
+        routeLengths.push(dist);
+        totalDistance += dist;
+    }
+
+    // 4. Finalize
+    progressDot.visible = true;
+    document.getElementById("timeline-panel").style.display = "block";
+    document.getElementById("scrubber").value = 0;
+    
+    // Update URL with clean dashes
+    const newHash = validList.join("-");
+    history.replaceState(null, "", "#" + newHash);
+    
+    // Ensure input matches clean URL format if user triggered via button
+    inputArea.value = newHash;
+    handleInput(); 
+}
+
+// --- BUTTON HANDLERS ---
+document.getElementById("init").onclick = () => {
+    const codes = handleInput();
+    initRoute(codes);
+};
+
+document.getElementById("reset").onclick = resetRoute;
+
+document.getElementById("share").onclick = () => {
+    navigator.clipboard.writeText(location.href);
+    const btn = document.getElementById("share");
+    const orig = btn.innerText;
+    btn.innerText = "COPIED TO CLIPBOARD";
+    setTimeout(() => btn.innerText = orig, 2000);
+};
+
+// --- SCRUBBER LOGIC ---
+document.getElementById("scrubber").oninput = e => {
+    if(!totalDistance) return;
+    let t = e.target.value / 1000;
+    let d = t * totalDistance;
+    
+    for(let i=0; i<routePoints.length; i++){
+        if(d <= routeLengths[i]){
+            const local = d / routeLengths[i];
+            const idx = Math.floor(local * (routePoints[i].length - 1));
+            // Safety check for index
+            if(routePoints[i][idx]) {
+                progressDot.position.copy(routePoints[i][idx]);
+            }
+            break;
+        }
+        d -= routeLengths[i];
+    }
+};
+
+// --- HOVER / INTERACTION LOGIC ---
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const tooltip = document.getElementById("tooltip");
+
+window.addEventListener('mousemove', (event) => {
+    // Normalize mouse coords
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    
+    // Move tooltip
+    tooltip.style.left = event.clientX + 'px';
+    tooltip.style.top = event.clientY + 'px';
+});
+
+// --- ANIMATION LOOP ---
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    
+    // 1. Raycasting for Labels
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(archiveGroup.children);
+    
+    if (intersects.length > 0) {
+        const obj = intersects[0].object;
+        if(obj.userData.code) {
+            tooltip.style.display = 'block';
+            tooltip.innerText = obj.userData.code;
+            document.body.style.cursor = 'pointer';
+        }
+    } else {
+        tooltip.style.display = 'none';
+        document.body.style.cursor = 'default';
+    }
+
+    // 2. Animate Dots (Flash Effect)
+    archiveGroup.children.forEach(dot => {
+        if(dot.userData.flash < 1) {
+            dot.userData.flash += 0.05;
+            const s = THREE.MathUtils.lerp(0.1, 1.0, dot.userData.flash);
+            // Add a little elastic bounce
+            const scale = s + Math.sin(dot.userData.flash * Math.PI) * 0.5;
+            dot.scale.setScalar(Math.max(0.1, scale));
+        } else {
+            dot.scale.setScalar(1);
+        }
+    });
+
+    composer.render();
+}
+
+// Start
+loadData();
+animate();
+
+window.onresize = () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    composer.setSize(innerWidth, innerHeight);
+};
+
+</script>
+</body>
+</html>
