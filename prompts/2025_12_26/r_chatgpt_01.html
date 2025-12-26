@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>France – Animated Geography</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/topojson-client@3"></script>
+
+<style>
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #0b1320;
+  color: #eaeaea;
+}
+
+#controls {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+}
+button {
+  margin: 2px;
+  padding: 6px 10px;
+  background: #1f2a44;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+button:hover { background: #2f3f66; }
+
+#label {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  opacity: 0.85;
+}
+
+svg {
+  width: 100vw;
+  height: 100vh;
+}
+path {
+  fill: none;
+  stroke: #ccc;
+}
+.river {
+  stroke: #6fb7ff;
+  stroke-width: 1.5;
+}
+.region {
+  stroke: #ffd166;
+  stroke-width: 1.5;
+}
+.department {
+  stroke: #999;
+  stroke-width: 0.7;
+}
+.prefecture {
+  fill: #ef476f;
+}
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+  <button id="restart">Restart</button>
+  <button id="slower">Slower</button>
+  <button id="faster">Faster</button>
+</div>
+<div id="label"></div>
+
+<svg></svg>
+
+<script>
+const svg = d3.select("svg");
+const width = window.innerWidth;
+const height = window.innerHeight;
+const g = svg.append("g");
+
+let speedFactor = 1;
+const baseDuration = 60000;
+
+const label = d3.select("#label");
+
+const projection = d3.geoOrthographic()
+  .scale(height * 0.45)
+  .translate([width / 2, height / 2])
+  .clipAngle(90);
+
+const path = d3.geoPath(projection);
+
+const zoom = d3.zoom()
+  .scaleExtent([0.5, 8])
+  .on("zoom", (e) => g.attr("transform", e.transform));
+
+svg.call(zoom);
+
+async function loadData() {
+  const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
+
+  const rivers = await d3.json(
+    "https://raw.githubusercontent.com/datasets/geo-rivers/master/data/rivers.geojson"
+  );
+
+  const regions = await d3.json(
+    "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/regions.geojson"
+  );
+
+  const departments = await d3.json(
+    "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson"
+  );
+
+  const prefectures = await d3.csv(
+    "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/communes.csv"
+  );
+
+  return { world, rivers, regions, departments, prefectures };
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function animate() {
+  g.selectAll("*").remove();
+  label.text("");
+
+  const { world, rivers, regions, departments, prefectures } = await loadData();
+
+  const land = topojson.feature(world, world.objects.countries);
+
+  // 🌍 Globe
+  const globe = g.append("path")
+    .datum({ type: "Sphere" })
+    .attr("stroke", "#888")
+    .attr("fill", "none")
+    .attr("d", path);
+
+  for (let i = 0; i < 120; i++) {
+    projection.rotate([i * 3, -20]);
+    globe.attr("d", path);
+    await sleep(40 / speedFactor);
+  }
+
+  // 🇫🇷 Zoom to France
+  const france = regions.features;
+  const [[x0, y0], [x1, y1]] = path.bounds({
+    type: "FeatureCollection",
+    features: france
+  });
+
+  svg.transition().duration(3000 / speedFactor).call(
+    zoom.transform,
+    d3.zoomIdentity
+      .translate(width / 2, height / 2)
+      .scale(Math.min(8, 0.9 / Math.max((x1 - x0) / width, (y1 - y0) / height)))
+      .translate(-(x0 + x1) / 2, -(y0 + y1) / 2)
+  );
+
+  await sleep(3000 / speedFactor);
+
+  // 🌊 Rivers (largest first – filtered by name)
+  const majorRivers = ["Loire", "Rhône", "Seine", "Garonne", "Dordogne", "Meuse", "Saône", "Charente"];
+
+  for (const name of majorRivers) {
+    const river = rivers.features.find(r => r.properties.name === name);
+    if (!river) continue;
+
+    label.text(name);
+    g.append("path")
+      .datum(river)
+      .attr("class", "river")
+      .attr("stroke-dasharray", "2000 2000")
+      .attr("stroke-dashoffset", 2000)
+      .attr("d", path)
+      .transition()
+      .duration(2000 / speedFactor)
+      .attr("stroke-dashoffset", 0);
+
+    await sleep(2000 / speedFactor);
+  }
+
+  // 🗺 Regions
+  const regionsSorted = [...regions.features].sort((a, b) =>
+    a.properties.nom.localeCompare(b.properties.nom)
+  );
+
+  for (const region of regionsSorted) {
+    label.text(region.properties.nom);
+
+    g.append("path")
+      .datum(region)
+      .attr("class", "region")
+      .attr("stroke-dasharray", "1000 1000")
+      .attr("stroke-dashoffset", 1000)
+      .attr("d", path)
+      .transition()
+      .duration(1500 / speedFactor)
+      .attr("stroke-dashoffset", 0);
+
+    await sleep(1500 / speedFactor);
+
+    // Departments in region
+    const deps = departments.features.filter(
+      d => d.properties.codeRegion === region.properties.code
+    );
+
+    for (const dep of deps) {
+      label.text(`${dep.properties.code} – ${dep.properties.nom}`);
+      g.append("path")
+        .datum(dep)
+        .attr("class", "department")
+        .attr("d", path);
+
+      await sleep(300 / speedFactor);
+    }
+  }
+
+  label.text("France complete – explore freely!");
+}
+
+animate();
+
+// Controls
+d3.select("#restart").on("click", animate);
+d3.select("#faster").on("click", () => speedFactor *= 1.5);
+d3.select("#slower").on("click", () => speedFactor /= 1.5);
+</script>
+
+</body>
+</html>

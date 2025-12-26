@@ -315,7 +315,7 @@ async function loadData() {
         // Inner black sphere
         globeGroup.add(new THREE.Mesh(
             new THREE.SphereGeometry(GLOBE_RADIUS*0.98, 32, 32),
-            new THREE.MeshBasicMaterial({ color: 0x000500 })
+            new THREE.MeshBasicMaterial({ color: 0x000500, transparent: true, opacity: 0.9 })
         ));
 
         // Hide Loader

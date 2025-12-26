@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>France Geographic Animation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a1628;
+            color: #fff;
+            overflow: hidden;
+        }
+        #container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+        }
+        #canvas {
+            border: 1px solid #2a3f5f;
+            background: #0f1e33;
+        }
+        #label {
+            margin: 20px 0;
+            font-size: 24px;
+            font-weight: 300;
+            height: 30px;
+            text-align: center;
+            color: #64b5f6;
+        }
+        #controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            background: #1e3a5f;
+            color: #fff;
+            border: 1px solid #2a4f7f;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #2a4f7f;
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .speed-display {
+            padding: 10px 20px;
+            background: #1e3a5f;
+            border-radius: 5px;
+            border: 1px solid #2a4f7f;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas" width="900" height="700"></canvas>
+        <div id="label"></div>
+        <div id="controls">
+            <button id="restart">Restart Animation</button>
+            <button id="slower">Slower (0.5x)</button>
+            <div class="speed-display">Speed: <span id="speed">1x</span></div>
+            <button id="faster">Faster (2x)</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const label = document.getElementById('label');
+        const width = canvas.width;
+        const height = canvas.height;
+        
+        let animationRunning = false;
+        let speedMultiplier = 1;
+        let userControl = false;
+        
+        // Major French rivers (roughly by length/importance)
+        const rivers = [
+            {name: "Loire", coords: [[3.4, 47.2], [1.5, 47.4], [0.0, 47.3], [-0.5, 47.2], [-1.5, 47.0], [-2.0, 47.3]]},
+            {name: "Rhône", coords: [[5.9, 46.2], [5.5, 45.8], [4.8, 45.5], [4.7, 44.5], [4.8, 43.9], [4.6, 43.4]]},
+            {name: "Seine", coords: [[4.5, 48.0], [3.3, 48.5], [2.4, 48.9], [1.4, 49.4], [0.1, 49.5]]},
+            {name: "Garonne", coords: [[0.7, 42.8], [1.0, 43.6], [0.2, 44.5], [-0.5, 44.8], [-0.7, 45.0]]},
+            {name: "Meuse", coords: [[5.5, 48.5], [5.2, 49.1], [5.0, 49.5], [4.8, 50.1]]},
+            {name: "Moselle", coords: [[6.8, 48.5], [6.5, 48.9], [6.2, 49.2], [6.1, 49.5]]},
+            {name: "Saône", coords: [[5.8, 47.7], [5.5, 47.1], [5.0, 46.5], [4.8, 46.0], [4.8, 45.5]]},
+            {name: "Dordogne", coords: [[2.5, 45.0], [1.5, 45.0], [0.5, 45.0], [0.0, 45.0]]},
+            {name: "Charente", coords: [[0.2, 45.8], [-0.3, 45.7], [-0.7, 45.7], [-1.0, 45.6]]}
+        ];
+
+        // French regions with prefectures
+        const regions = [
+            {name: "Auvergne-Rhône-Alpes", prefecture: "Lyon", prefCoords: [4.8, 45.75], departments: [
+                {num: "01", name: "Ain"}, {num: "03", name: "Allier"}, {num: "07", name: "Ardèche"},
+                {num: "15", name: "Cantal"}, {num: "26", name: "Drôme"}, {num: "38", name: "Isère"},
+                {num: "42", name: "Loire"}, {num: "43", name: "Haute-Loire"}, {num: "63", name: "Puy-de-Dôme"},
+                {num: "69", name: "Rhône"}, {num: "73", name: "Savoie"}, {num: "74", name: "Haute-Savoie"}
+            ]},
+            {name: "Bourgogne-Franche-Comté", prefecture: "Dijon", prefCoords: [5.0, 47.32], departments: [
+                {num: "21", name: "Côte-d'Or"}, {num: "25", name: "Doubs"}, {num: "39", name: "Jura"},
+                {num: "58", name: "Nièvre"}, {num: "70", name: "Haute-Saône"}, {num: "71", name: "Saône-et-Loire"},
+                {num: "89", name: "Yonne"}, {num: "90", name: "Territoire de Belfort"}
+            ]},
+            {name: "Bretagne", prefecture: "Rennes", prefCoords: [-1.68, 48.11], departments: [
+                {num: "22", name: "Côtes-d'Armor"}, {num: "29", name: "Finistère"},
+                {num: "35", name: "Ille-et-Vilaine"}, {num: "56", name: "Morbihan"}
+            ]},
+            {name: "Centre-Val de Loire", prefecture: "Orléans", prefCoords: [1.9, 47.9], departments: [
+                {num: "18", name: "Cher"}, {num: "28", name: "Eure-et-Loir"}, {num: "36", name: "Indre"},
+                {num: "37", name: "Indre-et-Loire"}, {num: "41", name: "Loir-et-Cher"}, {num: "45", name: "Loiret"}
+            ]},
+            {name: "Corse", prefecture: "Ajaccio", prefCoords: [8.74, 41.93], departments: [
+                {num: "2A", name: "Corse-du-Sud"}, {num: "2B", name: "Haute-Corse"}
+            ]},
+            {name: "Grand Est", prefecture: "Strasbourg", prefCoords: [7.75, 48.58], departments: [
+                {num: "08", name: "Ardennes"}, {num: "10", name: "Aube"}, {num: "51", name: "Marne"},
+                {num: "52", name: "Haute-Marne"}, {num: "54", name: "Meurthe-et-Moselle"}, {num: "55", name: "Meuse"},
+                {num: "57", name: "Moselle"}, {num: "67", name: "Bas-Rhin"}, {num: "68", name: "Haut-Rhin"},
+                {num: "88", name: "Vosges"}
+            ]},
+            {name: "Hauts-de-France", prefecture: "Lille", prefCoords: [3.06, 50.63], departments: [
+                {num: "02", name: "Aisne"}, {num: "59", name: "Nord"}, {num: "60", name: "Oise"},
+                {num: "62", name: "Pas-de-Calais"}, {num: "80", name: "Somme"}
+            ]},
+            {name: "Île-de-France", prefecture: "Paris", prefCoords: [2.35, 48.86], departments: [
+                {num: "75", name: "Paris"}, {num: "77", name: "Seine-et-Marne"}, {num: "78", name: "Yvelines"},
+                {num: "91", name: "Essonne"}, {num: "92", name: "Hauts-de-Seine"}, {num: "93", name: "Seine-Saint-Denis"},
+                {num: "94", name: "Val-de-Marne"}, {num: "95", name: "Val-d'Oise"}
+            ]},
+            {name: "Normandie", prefecture: "Rouen", prefCoords: [1.1, 49.44], departments: [
+                {num: "14", name: "Calvados"}, {num: "27", name: "Eure"}, {num: "50", name: "Manche"},
+                {num: "61", name: "Orne"}, {num: "76", name: "Seine-Maritime"}
+            ]},
+            {name: "Nouvelle-Aquitaine", prefecture: "Bordeaux", prefCoords: [-0.58, 44.84], departments: [
+                {num: "16", name: "Charente"}, {num: "17", name: "Charente-Maritime"}, {num: "19", name: "Corrèze"},
+                {num: "23", name: "Creuse"}, {num: "24", name: "Dordogne"}, {num: "33", name: "Gironde"},
+                {num: "40", name: "Landes"}, {num: "47", name: "Lot-et-Garonne"}, {num: "64", name: "Pyrénées-Atlantiques"},
+                {num: "79", name: "Deux-Sèvres"}, {num: "86", name: "Vienne"}, {num: "87", name: "Haute-Vienne"}
+            ]},
+            {name: "Occitanie", prefecture: "Toulouse", prefCoords: [1.44, 43.60], departments: [
+                {num: "09", name: "Ariège"}, {num: "11", name: "Aude"}, {num: "12", name: "Aveyron"},
+                {num: "30", name: "Gard"}, {num: "31", name: "Haute-Garonne"}, {num: "32", name: "Gers"},
+                {num: "34", name: "Hérault"}, {num: "46", name: "Lot"}, {num: "48", name: "Lozère"},
+                {num: "65", name: "Hautes-Pyrénées"}, {num: "66", name: "Pyrénées-Orientales"},
+                {num: "81", name: "Tarn"}, {num: "82", name: "Tarn-et-Garonne"}
+            ]},
+            {name: "Pays de la Loire", prefecture: "Nantes", prefCoords: [-1.55, 47.22], departments: [
+                {num: "44", name: "Loire-Atlantique"}, {num: "49", name: "Maine-et-Loire"},
+                {num: "53", name: "Mayenne"}, {num: "72", name: "Sarthe"}, {num: "85", name: "Vendée"}
+            ]},
+            {name: "Provence-Alpes-Côte d'Azur", prefecture: "Marseille", prefCoords: [5.37, 43.30], departments: [
+                {num: "04", name: "Alpes-de-Haute-Provence"}, {num: "05", name: "Hautes-Alpes"},
+                {num: "06", name: "Alpes-Maritimes"}, {num: "13", name: "Bouches-du-Rhône"},
+                {num: "83", name: "Var"}, {num: "84", name: "Vaucluse"}
+            ]}
+        ];
+
+        let globeData, franceData;
+        let projection, path;
+        let rotation = [0, -30, 0];
+
+        async function loadData() {
+            const world = await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+            globeData = topojson.feature(world, world.objects.countries);
+            
+            const france = await d3.json('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/regions-version-simplifiee.geojson');
+            franceData = france;
+        }
+
+        function drawGlobe() {
+            ctx.clearRect(0, 0, width, height);
+            
+            projection = d3.geoOrthographic()
+                .scale(250)
+                .translate([width / 2, height / 2])
+                .rotate(rotation);
+            
+            path = d3.geoPath(projection, ctx);
+            
+            ctx.beginPath();
+            path({type: 'Sphere'});
+            ctx.strokeStyle = '#2a4f7f';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            ctx.strokeStyle = '#3a5f8f';
+            ctx.lineWidth = 0.5;
+            globeData.features.forEach(feature => {
+                ctx.beginPath();
+                path(feature);
+                ctx.stroke();
+            });
+        }
+
+        function drawLine(points, progress, color = '#64b5f6') {
+            if (points.length < 2) return;
+            
+            const totalSegments = points.length - 1;
+            const segmentProgress = progress * totalSegments;
+            const currentSegment = Math.floor(segmentProgress);
+            const segmentFraction = segmentProgress - currentSegment;
+            
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            
+            for (let i = 0; i < currentSegment && i < points.length - 1; i++) {
+                const p = projection(points[i]);
+                if (i === 0) ctx.moveTo(p[0], p[1]);
+                else ctx.lineTo(p[0], p[1]);
+            }
+            
+            if (currentSegment < points.length - 1) {
+                const p1 = projection(points[currentSegment]);
+                const p2 = projection(points[currentSegment + 1]);
+                const px = p1[0] + (p2[0] - p1[0]) * segmentFraction;
+                const py = p1[1] + (p2[1] - p1[1]) * segmentFraction;
+                ctx.lineTo(px, py);
+            }
+            
+            ctx.stroke();
+        }
+
+        async function animate() {
+            if (animationRunning) return;
+            animationRunning = true;
+            userControl = false;
+            
+            document.getElementById('restart').disabled = true;
+            
+            const baseDuration = 60000; // 60 seconds
+            
+            // Phase 1: Rotate globe (5 seconds)
+            await animatePhase(5000, (t) => {
+                rotation[0] = t * 360;
+                drawGlobe();
+            });
+            
+            // Phase 2: Zoom to France (3 seconds)
+            await animatePhase(3000, (t) => {
+                const scale = 250 + t * 750;
+                const rotate = [rotation[0] + t * (-rotation[0] - 2), -30 + t * (-17), 0];
+                
+                projection = d3.geoOrthographic()
+                    .scale(scale)
+                    .translate([width / 2, height / 2])
+                    .rotate(rotate);
+                
+                path = d3.geoPath(projection, ctx);
+                
+                ctx.clearRect(0, 0, width, height);
+                ctx.strokeStyle = '#3a5f8f';
+                ctx.lineWidth = 0.5;
+                globeData.features.forEach(feature => {
+                    ctx.beginPath();
+                    path(feature);
+                    ctx.stroke();
+                });
+                
+                if (t === 1) rotation = rotate;
+            });
+            
+            // Switch to France projection
+            projection = d3.geoConicConformal()
+                .center([2.5, 46.8])
+                .scale(2200)
+                .translate([width / 2, height / 2]);
+            
+            path = d3.geoPath(projection, ctx);
+            
+            // Draw France outline
+            ctx.clearRect(0, 0, width, height);
+            ctx.strokeStyle = '#3a5f8f';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            path(franceData);
+            ctx.stroke();
+            
+            // Phase 3: Draw rivers (10 seconds)
+            const riverTime = 10000 / rivers.length;
+            for (const river of rivers) {
+                label.textContent = river.name;
+                await animatePhase(riverTime, (t) => {
+                    ctx.clearRect(0, 0, width, height);
+                    ctx.strokeStyle = '#3a5f8f';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    path(franceData);
+                    ctx.stroke();
+                    
+                    drawLine(river.coords, t, '#42a5f5');
+                });
+            }
+            
+            label.textContent = '';
+            
+            // Phase 4: Draw regions and departments (42 seconds)
+            const timePerRegion = 42000 / regions.length;
+            
+            for (const region of regions) {
+                // Draw region outline
+                label.textContent = region.name;
+                await new Promise(resolve => setTimeout(resolve, 500 / speedMultiplier));
+                
+                // Draw prefecture
+                const prefPoint = projection(region.prefCoords);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.arc(prefPoint[0], prefPoint[1], 4, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                label.textContent = `${region.name} - ${region.prefecture}`;
+                await new Promise(resolve => setTimeout(resolve, 500 / speedMultiplier));
+                
+                // Draw departments
+                const deptTime = (timePerRegion - 1000) / region.departments.length;
+                for (const dept of region.departments) {
+                    label.textContent = `${dept.num} - ${dept.name}`;
+                    await new Promise(resolve => setTimeout(resolve, deptTime / speedMultiplier));
+                }
+            }
+            
+            label.textContent = 'Complete! Use mouse to explore.';
+            document.getElementById('restart').disabled = false;
+            animationRunning = false;
+            userControl = true;
+            enableInteraction();
+        }
+
+        function animatePhase(duration, callback) {
+            return new Promise(resolve => {
+                const start = Date.now();
+                const adjustedDuration = duration / speedMultiplier;
+                
+                function frame() {
+                    const elapsed = Date.now() - start;
+                    const t = Math.min(elapsed / adjustedDuration, 1);
+                    
+                    callback(t);
+                    
+                    if (t < 1) {
+                        requestAnimationFrame(frame);
+                    } else {
+                        callback(1);
+                        resolve();
+                    }
+                }
+                
+                requestAnimationFrame(frame);
+            });
+        }
+
+        function enableInteraction() {
+            let isDragging = false;
+            let lastX, lastY;
+            let scale = 2200;
+            
+            canvas.addEventListener('wheel', (e) => {
+                if (!userControl) return;
+                e.preventDefault();
+                scale *= (e.deltaY < 0 ? 1.1 : 0.9);
+                scale = Math.max(500, Math.min(scale, 5000));
+                projection.scale(scale);
+                redrawComplete();
+            });
+            
+            canvas.addEventListener('mousedown', (e) => {
+                if (!userControl) return;
+                isDragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging || !userControl) return;
+                const dx = e.clientX - lastX;
+                const dy = e.clientY - lastY;
+                
+                const center = projection.center();
+                projection.center([center[0] - dx / scale * 100, center[1] + dy / scale * 100]);
+                
+                lastX = e.clientX;
+                lastY = e.clientY;
+                redrawComplete();
+            });
+            
+            canvas.addEventListener('mouseup', () => isDragging = false);
+            canvas.addEventListener('mouseleave', () => isDragging = false);
+        }
+
+        function redrawComplete() {
+            ctx.clearRect(0, 0, width, height);
+            ctx.strokeStyle = '#3a5f8f';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            path(franceData);
+            ctx.stroke();
+            
+            // Draw all rivers
+            rivers.forEach(river => {
+                drawLine(river.coords, 1, '#42a5f5');
+            });
+            
+            // Draw all prefectures
+            regions.forEach(region => {
+                const prefPoint = projection(region.prefCoords);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.arc(prefPoint[0], prefPoint[1], 4, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        }
+
+        document.getElementById('restart').addEventListener('click', () => {
+            rotation = [0, -30, 0];
+            userControl = false;
+            animate();
+        });
+
+        document.getElementById('faster').addEventListener('click', () => {
+            speedMultiplier = Math.min(speedMultiplier * 2, 8);
+            document.getElementById('speed').textContent = speedMultiplier + 'x';
+        });
+
+        document.getElementById('slower').addEventListener('click', () => {
+            speedMultiplier = Math.max(speedMultiplier * 0.5, 0.25);
+            document.getElementById('speed').textContent = speedMultiplier + 'x';
+        });
+
+        async function init() {
+            label.textContent = 'Loading...';
+            await loadData();
+            label.textContent = '';
+            drawGlobe();
+            animate();
+        }
+
+        init();
+    </script>
+</body>
+</html>
