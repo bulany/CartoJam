@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CartoJam: The Human Topography of France</title>
+    <meta name="description" content="Interactive 3D topographic visualization of France's 96 metropolitan departments and 13 regions extruding population as pedestals." />
+    <meta property="og:title" content="CartoJam: The Human Topography of France" />
+    <meta property="og:description" content="Interactive 3D topographic visualization of France's 96 metropolitan departments and 13 regions extruding population as pedestals." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- MapLibre GL CSS -->
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Application Stylesheet -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app-container">
+      <!-- Background MapLibre Map (for Topo / Satellite sync) -->
+      <div id="maplibre-container"></div>
+
+      <!-- 3D Three.js Surface -->
+      <div id="three-canvas-container"></div>
+
+      <!-- Capital Tooltip -->
+      <div id="capitals-tooltip"></div>
+
+      <!-- Top-Left HUD: Title Badge & Inspector Card -->
+      <div class="hud-layer top-left-hud">
+        <div class="brand-badge">
+          <h1>CARTO JAM</h1>
+          <span class="badge-sub">2026-10-22 · FRANCE</span>
+        </div>
+
+        <div class="inspector-card hud-interactive" id="inspector-card">
+          <div class="dept-header">
+            <span class="dept-code" id="hud-dept-code">75</span>
+            <span class="dept-name" id="hud-dept-name">Paris</span>
+            <button id="btn-toggle-inspector" class="drawer-close-btn" aria-label="Toggle inspector card details" title="Collapse / Expand" style="margin-left: 8px;">
+              <svg id="inspector-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+                <polyline points="18 15 12 9 6 15"></polyline>
+              </svg>
+            </button>
+          </div>
+          <div class="inspector-stats-grid" id="inspector-stats-body">
+            <div class="stat-item">
+              <span class="stat-label">Préfecture</span>
+              <span class="stat-value" id="hud-dept-pref">Paris</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Population</span>
+              <span class="stat-value" id="hud-dept-pop">2 133 111</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Part Nationale</span>
+              <span class="stat-value" id="hud-dept-pct">3.22%</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Densité</span>
+              <span class="stat-value" id="hud-dept-density">20 315 hab/km²</span>
+            </div>
+            <div class="stat-region">
+              <div>
+                <span class="region-color-swatch" id="hud-region-swatch"></span>
+                <span class="stat-value" id="hud-region-name">Île-de-France</span>
+              </div>
+              <span class="stat-value" id="hud-region-pop" style="font-size: 12px; color: var(--text-muted);">12 400 000 hab.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top-Right HUD: Header Actions -->
+      <div class="hud-layer top-right-hud hud-interactive">
+        <button id="btn-open-about" class="hud-btn" aria-label="Open About and AI Log modal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          About / AI Log
+        </button>
+        <button id="btn-open-controls" class="hud-btn" aria-label="Open 3D Controls drawer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <line x1="4" y1="21" x2="4" y2="14"></line>
+            <line x1="4" y1="10" x2="4" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12" y2="3"></line>
+            <line x1="20" y1="21" x2="20" y2="16"></line>
+            <line x1="20" y1="12" x2="20" y2="3"></line>
+            <line x1="1" y1="14" x2="7" y2="14"></line>
+            <line x1="9" y1="8" x2="15" y2="8"></line>
+            <line x1="17" y1="16" x2="23" y2="16"></line>
+          </svg>
+          Controls
+        </button>
+      </div>
+
+      <!-- Bottom-Left HUD: Google Maps-Style Layer Switcher -->
+      <div class="hud-layer bottom-left-hud hud-interactive">
+        <div class="layers-card">
+          <button class="layer-option active" data-layer="hologram" aria-label="WarGames Hologram offline mode">
+            <div class="thumb-box"></div>
+            <span>Hologram</span>
+          </button>
+          <button class="layer-option" data-layer="topo" aria-label="Topo and roads map layer">
+            <div class="thumb-box"></div>
+            <span>Topo</span>
+          </button>
+          <button class="layer-option" data-layer="satellite" aria-label="Satellite imagery map layer">
+            <div class="thumb-box"></div>
+            <span>Satellite</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Bottom-Right HUD: Google Maps-Style Navigation Cluster -->
+      <div class="hud-layer bottom-right-hud hud-interactive">
+        <div class="scale-bar-container" title="Current approximate ground distance">
+          <div class="scale-graphic"></div>
+          <span id="scale-text">200 km</span>
+        </div>
+
+        <div class="nav-buttons-cluster">
+          <button id="btn-compass" class="nav-cluster-btn" aria-label="Reset orientation to North" title="Reset North">
+            <svg id="compass-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <polygon points="12 2 19 21 12 17 5 21 12 2" fill="var(--accent-cyan)" stroke="currentColor"></polygon>
+            </svg>
+          </button>
+          <button id="btn-2d-3d" class="nav-cluster-btn" aria-label="Toggle 2D and 3D camera pitch" title="2D/3D Pitch" style="font-weight: 700; font-size: 12px;">
+            2D
+          </button>
+          <button id="btn-zoom-in" class="nav-cluster-btn" aria-label="Zoom in camera" title="Zoom In">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+          <button id="btn-zoom-out" class="nav-cluster-btn" aria-label="Zoom out camera" title="Zoom Out">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Controls Drawer -->
+      <aside class="controls-drawer" id="controls-drawer" aria-label="Topographic Extrusion Controls">
+        <div class="drawer-header">
+          <h2>TOPOGRAPHY CONTROLS</h2>
+          <button class="drawer-close-btn" id="btn-close-controls" aria-label="Close controls drawer">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="drawer-content">
+          <div class="control-group">
+            <div class="control-header">
+              <label for="slider-region-scale">Region Pedestal Scale</label>
+              <span class="control-val" id="val-region-scale">1.0x</span>
+            </div>
+            <input type="range" id="slider-region-scale" min="0" max="3" step="0.1" value="1.0" />
+            <span class="control-desc">Base pedestal height proportional to the 13 regional populations.</span>
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <label for="slider-dept-scale">Department Extrusion Scale</label>
+              <span class="control-val" id="val-dept-scale">1.0x</span>
+            </div>
+            <input type="range" id="slider-dept-scale" min="0" max="3" step="0.1" value="1.0" />
+            <span class="control-desc">Secondary extrusion rising from regional pedestals based on department population.</span>
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <label for="slider-elevation-mult">Elevation Multiplier</label>
+              <span class="control-val" id="val-elevation-mult">1.0x</span>
+            </div>
+            <input type="range" id="slider-elevation-mult" min="0.2" max="2.5" step="0.1" value="1.0" />
+            <span class="control-desc">Global vertical exaggeration of all 3D topography.</span>
+          </div>
+
+          <div class="toggle-group">
+            <label for="toggle-capitals">Show Prefecture Capitals</label>
+            <label class="switch">
+              <input type="checkbox" id="toggle-capitals" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-group">
+            <label for="toggle-wireframe">Wireframe Edges</label>
+            <label class="switch">
+              <input type="checkbox" id="toggle-wireframe" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <button id="btn-replay-anim" class="drawer-action-btn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor">
+              <polyline points="1 4 1 10 7 10"></polyline>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </svg>
+            Replay Growth Animation
+          </button>
+        </div>
+      </aside>
+
+      <!-- About & AI Log Modal Dialog -->
+      <div class="modal-overlay" id="about-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h2 id="modal-title">About CartoJam</h2>
+            <button class="drawer-close-btn" id="btn-close-about" aria-label="Close modal">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-tabs">
+            <button class="modal-tab-btn active" data-tab="overview">Overview</button>
+            <button class="modal-tab-btn" data-tab="dataset">Dataset & Methodology</button>
+            <button class="modal-tab-btn" data-tab="ailog">AI Log (AI_LOG.md)</button>
+          </div>
+          <div class="modal-body" id="modal-body-content">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- External Libraries (CDN with fallback support) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Embedded Cartographic & Demographic Data -->
+    <script src="data.js"></script>
+
+    <!-- Application Script -->
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CARTO JAM // Bulany</title>
+  <style>
+    :root {
+      --bg: #070b10;
+      --card: #0f1722;
+      --border: #1e293b;
+      --accent: #00f0ff;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 2rem 1.5rem 4rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.25rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .brand h1 {
+      font-size: 1.9rem;
+      letter-spacing: 0.08em;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .brand h1 span { color: var(--accent); }
+    .brand p { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+    .url-pill {
+      background: #111c2d;
+      border: 1px solid #263850;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      color: var(--accent);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+      display: flex;
+      flex-direction: column;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent);
+    }
+    .thumb-wrap {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      background: radial-gradient(circle at 50% 50%, #0d263b 0%, #050a0f 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      text-decoration: none;
+    }
+    .thumb-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .thumb-fallback {
+      text-align: center;
+      color: var(--accent);
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      padding: 1rem;
+      border: 1px dashed rgba(0, 240, 255, 0.35);
+      border-radius: 8px;
+      background: rgba(0, 240, 255, 0.05);
+    }
+    .date-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(7, 11, 16, 0.85);
+      border: 1px solid var(--border);
+      color: var(--accent);
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .card-body { padding: 1.2rem; flex: 1; display: flex; flex-direction: column; }
+    .card-title {
+      font-size: 1.2rem;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+    .card-title:hover { color: var(--accent); }
+    .card-sub { color: var(--muted); font-size: 0.88rem; margin-bottom: 1rem; }
+    .tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    .tag {
+      font-size: 0.72rem;
+      background: #162234;
+      color: #cbd5e1;
+      padding: 0.18rem 0.5rem;
+      border-radius: 4px;
+    }
+    .card-actions {
+      margin-top: auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 0.8rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+    }
+    .btn-launch {
+      background: var(--accent);
+      color: #041016;
+      text-decoration: none;
+      font-weight: 700;
+      padding: 0.4rem 0.85rem;
+      border-radius: 5px;
+      font-size: 0.8rem;
+    }
+    .btn-log {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 0.38rem 0.7rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.78rem;
+    }
+    .btn-log:hover { color: #fff; border-color: var(--accent); }
+
+    /* Waterfall Section */
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.4rem;
+      margin-bottom: 2rem;
+    }
+    .panel h2 { font-size: 1.1rem; margin-bottom: 0.3rem; color: #fff; }
+    .panel p { font-size: 0.84rem; color: var(--muted); margin-bottom: 1.1rem; }
+    .lane-row {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .lane-label { font-size: 0.8rem; color: #cbd5e1; font-weight: 600; }
+    .lane-track {
+      position: relative;
+      height: 28px;
+      background: #090e16;
+      border: 1px solid #1a2436;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .event-bar {
+      position: absolute;
+      top: 3px;
+      bottom: 3px;
+      border-radius: 3px;
+      cursor: pointer;
+      min-width: 6px;
+      opacity: 0.9;
+    }
+    .event-bar:hover { opacity: 1; outline: 1px solid #fff; }
+    .time-axis {
+      display: flex;
+      justify-content: space-between;
+      padding-left: 226px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
+    .archive-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+    .archive-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      background: #131d2b;
+      padding: 0.35rem 0.75rem;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+    }
+    .archive-link:hover { color: var(--accent); border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1><span>//</span> CARTO JAM</h1>
+      <p>Weekly Thursday spatial data, 3D cartography & visualization experiments</p>
+    </div>
+    <div class="url-pill">bulany.github.io/CartoJam</div>
+  </header>
+
+  <section class="grid" id="jam-grid"></section>
+
+  <section class="panel" id="waterfall-panel">
+    <h2>AI & Human Provenance Waterfall // 2026-10-22 Session</h2>
+    <p>Parallel timeline of Human voice-transcription turns, Gemini Argon architecture turns, and AI Studio Build (Gemini 3.8 Flash) compute passes (13:50 – 17:05 CEST). Hover bars for token & timing stats.</p>
+    <div id="waterfall-chart"></div>
+    <div class="time-axis">
+      <span>13:50</span><span>14:30</span><span>15:10</span><span>15:50</span><span>16:30</span><span>17:05</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Archive (2025 Experiments)</h2>
+    <p>Previous standalone prototypes preserved in <code>archive_2026_10_21/</code></p>
+    <div class="archive-list" id="archive-list"></div>
+  </section>
+
+  <script src="./jams.js"></script>
+  <script>
+    const data = window.CARTOJAM_DATA || { jams: [], archived: [] };
+    const grid = document.getElementById('jam-grid');
+
+    data.jams.forEach(jam => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <a class="thumb-wrap" href="${jam.path}">
+          <span class="date-badge">${jam.date}</span>
+          <img src="${jam.thumb}" alt="${jam.title}"
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+               onmouseenter="this.dataset.static=this.src; this.src='${jam.gif}';"
+               onmouseleave="if(this.dataset.static) this.src=this.dataset.static;" />
+          <div class="thumb-fallback" style="display:none;">
+            [ 3D HOLOGRAM PREVIEW ]<br/>Click to Launch Interactive Map
+          </div>
+        </a>
+        <div class="card-body">
+          <a class="card-title" href="${jam.path}">${jam.title}</a>
+          <div class="card-sub">${jam.subtitle}</div>
+          <div class="tags">${jam.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+          <div class="card-actions">
+            <span style="color:var(--muted)">⏱ Human: ${jam.stats.human_min}m | AI: ${jam.stats.ai_min}m</span>
+            <a class="btn-launch" href="${jam.path}">Launch 3D Map →</a>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+    // Render parallel waterfall chart for latest jam
+    const jam = data.jams[0];
+    if (jam && jam.ai_log) {
+      const chart = document.getElementById('waterfall-chart');
+      const lanes = ["Human (Voice Spec & Test)", "Gemini Argon (Architect)", "AI Studio Build (3.8 Flash)"];
+      const toMin = (hhmm) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        return h * 60 + m;
+      };
+      const startMin = toMin("13:50");
+      const totalSpan = toMin("17:05") - startMin;
+
+      lanes.forEach(laneName => {
+        const row = document.createElement('div');
+        row.className = 'lane-row';
+        const events = jam.ai_log.events.filter(e => e.lane === laneName);
+        const barsHtml = events.map(ev => {
+          const leftPct = Math.max(0, ((toMin(ev.start) - startMin) / totalSpan) * 100);
+          const widthPct = Math.max(1.2, ((toMin(ev.end) - toMin(ev.start)) / totalSpan) * 100);
+          return `<div class="event-bar" style="left:${leftPct}%; width:${widthPct}%; background:${ev.color};"
+                       title="${ev.actor} (${ev.start} - ${ev.end} | ${ev.dur})\n${ev.detail}"></div>`;
+        }).join('');
+        row.innerHTML = `<div class="lane-label">${laneName}</div><div class="lane-track">${barsHtml}</div>`;
+        chart.appendChild(row);
+      });
+    }
+
+    // Render archive links
+    const archList = document.getElementById('archive-list');
+    data.archived.forEach(item => {
+      const a = document.createElement('a');
+      a.className = 'archive-link';
+      a.href = item.path;
+      a.textContent = item.title;
+      archList.appendChild(a);
+    });
+  </script>
+</body>
+</html>
