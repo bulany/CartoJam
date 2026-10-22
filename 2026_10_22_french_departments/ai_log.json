@@ -3,9 +3,12 @@
   "title": "The Human Topography of France",
   "date": "2026-10-22",
   "summary": {
-    "total_human_duration_sec": 3990,
-    "total_ai_duration_sec": 2168.3,
-    "total_known_tokens": 40851
+    "total_human_duration_sec": 7026,
+    "total_human_duration_min": 117.1,
+    "total_ai_duration_sec": 2253.0,
+    "total_ai_duration_min": 37.6,
+    "argon_cumulative_tokens_before_final": 72206,
+    "argon_final_turn_tokens": "TODO_FINAL_TOKENS"
   },
   "events": [
     {
@@ -24,7 +27,7 @@
       "start": "2026-10-22T14:28:15+02:00",
       "duration_sec": 48.2,
       "tokens": 8113,
-      "notes": " Clarifying questions, AI Studio App Builder prompt, repo architecture blueprint"
+      "notes": "Turn 1: Clarifying questions, AI Studio App Builder prompt, repo architecture blueprint"
     },
     {
       "id": "human_02",
@@ -42,7 +45,7 @@
       "start": "2026-10-22T16:02:00+02:00",
       "duration_sec": 993,
       "tokens": null,
-      "notes": "Pass 1: Generated data.js, 96 departments GeoJSON, Three.js extrusion, MapLibre layers, and UI"
+      "notes": "Pass 1 (16m33s): Generated data.js, 96 departments GeoJSON, Three.js extrusion, MapLibre layers, and UI"
     },
     {
       "id": "argon_02",
@@ -51,7 +54,7 @@
       "start": "2026-10-22T16:16:00+02:00",
       "duration_sec": 33.3,
       "tokens": 12856,
-      "notes": "Created scripts/dir_tree.py v1 and explained Jekyll underscore gotcha"
+      "notes": "Turn 2: Created scripts/dir_tree.py v1 and explained Jekyll underscore gotcha"
     },
     {
       "id": "aistudio_02",
@@ -60,7 +63,7 @@
       "start": "2026-10-22T16:18:33+02:00",
       "duration_sec": 1045,
       "tokens": null,
-      "notes": "Pass 2: Auto-fixed dev server preview container, finalized offline-first bundle and verification artifacts"
+      "notes": "Pass 2 (17m25s): Auto-fixed dev server preview container, finalized offline-first bundle"
     },
     {
       "id": "human_03",
@@ -78,7 +81,7 @@
       "start": "2026-10-22T16:34:10+02:00",
       "duration_sec": 48.8,
       "tokens": 19882,
-      "notes": "Upgraded dir_tree.py v2 and provided git mv archive migration script"
+      "notes": "Turn 3: Upgraded dir_tree.py v2 and provided git mv archive migration script"
     },
     {
       "id": "human_04",
@@ -87,7 +90,34 @@
       "start": "2026-10-22T16:37:00+02:00",
       "end": "2026-10-22T16:59:00+02:00",
       "duration_sec": 1239,
-      "notes": "Executed git migration, tested 3D visualization offline, designed ai_log.json waterfall schema"
+      "notes": "Executed git migration (1m33s + 19m06s), tested 3D visualization offline, designed ai_log.json waterfall schema"
+    },
+    {
+      "id": "argon_04",
+      "lane": "ai_architect",
+      "actor": "Gemini Argon",
+      "start": "2026-10-22T16:59:10+02:00",
+      "duration_sec": 84.7,
+      "tokens": 31355,
+      "notes": "Turn 4: Generated portfolio index.html, jams.js waterfall chart, and deployment instructions"
+    },
+    {
+      "id": "human_05",
+      "lane": "human",
+      "actor": "Bulany (Deployment, Thumbnail & Live Release)",
+      "start": "2026-10-22T17:03:00+02:00",
+      "end": "2026-10-22T17:34:26+02:00",
+      "duration_sec": 1886,
+      "notes": "Packaged files, deployed GitHub Pages from root, created thumb.jpg, verified live site and emailed link"
+    },
+    {
+      "id": "argon_05",
+      "lane": "ai_architect",
+      "actor": "Gemini Argon",
+      "start": "2026-10-22T17:34:35+02:00",
+      "duration_sec": "79.1",
+      "tokens": 40688,
+      "notes": "Turn 5: Finalized ai_log.json, fixed thumb.jpg hover fallback, generated NEXT_THURSDAY_CONTEXT.md"
     }
   ]
 }
