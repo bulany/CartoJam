@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CartoJam // NORAD Flight Track & Solar Terminator (EY426 Geneva - Abu Dhabi - Chiang Mai)</title>
+  
+  <!-- Retro Terminal Font & Lucide Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Three.js and OrbitControls via reliable CDNs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    :root {
+      --crt-green: #33ff66;
+      --crt-dim-green: #116629;
+      --crt-red: #ff3344;
+      --crt-amber: #ffaa22;
+      --crt-cyan: #00e5ff;
+      --crt-bg: #030806;
+      --panel-bg: rgba(3, 14, 8, 0.88);
+      --border-glow: 1px solid rgba(51, 255, 102, 0.4);
+      --font-mono: 'Share Tech Mono', monospace;
+      --font-crt: 'VT323', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--crt-bg);
+      font-family: var(--font-mono);
+      color: var(--crt-green);
+      font-size: 13px;
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+    }
+
+    /* CRT Scanlines, Vignette & Phosphor Glow overlay */
+    .crt-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 50;
+      background: radial-gradient(circle at center, transparent 60%, rgba(0, 0, 0, 0.75) 100%),
+                  linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
+                  linear-gradient(90deg, rgba(255,0,0,0.02), rgba(0,255,0,0.01), rgba(0,0,255,0.02));
+      background-size: 100% 100%, 100% 3px, 4px 100%;
+    }
+
+    .crt-flicker {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 51;
+      opacity: 0.04;
+      background: white;
+      animation: flicker 0.12s infinite;
+    }
+
+    @keyframes flicker {
+      0% { opacity: 0.03; }
+      50% { opacity: 0.06; }
+      100% { opacity: 0.02; }
+    }
+
+    /* UI Common styles */
+    .glowing-box {
+      background: var(--panel-bg);
+      border: var(--border-glow);
+      box-shadow: 0 0 15px rgba(51, 255, 102, 0.15), inset 0 0 8px rgba(51, 255, 102, 0.08);
+      backdrop-filter: blur(4px);
+      border-radius: 4px;
+      pointer-events: auto;
+    }
+
+    .hud-title {
+      font-family: var(--font-crt);
+      font-size: 22px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #99ffaa;
+      text-shadow: 0 0 8px rgba(51, 255, 102, 0.8);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Top Left Header / Telemetry */
+    #top-left-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      padding: 12px 18px;
+      max-width: 420px;
+    }
+
+    .telemetry-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 6px;
+      font-size: 12px;
+    }
+
+    .label {
+      color: #559966;
+    }
+
+    .val {
+      color: #e0ffe5;
+      font-weight: bold;
+    }
+
+    .val.amber {
+      color: var(--crt-amber);
+      text-shadow: 0 0 6px rgba(255, 170, 34, 0.6);
+    }
+
+    /* Top Right Buttons */
+    #top-right-bar {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 10;
+      display: flex;
+      gap: 10px;
+    }
+
+    button.btn-retro {
+      background: rgba(3, 24, 12, 0.9);
+      border: 1px solid var(--crt-green);
+      color: var(--crt-green);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 8px 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-shadow: 0 0 5px rgba(51, 255, 102, 0.6);
+      transition: all 0.15s ease;
+      border-radius: 2px;
+    }
+
+    button.btn-retro:hover {
+      background: var(--crt-green);
+      color: #031408;
+      box-shadow: 0 0 12px rgba(51, 255, 102, 0.7);
+    }
+
+    button.btn-retro:active {
+      transform: scale(0.97);
+    }
+
+    button.btn-retro.active {
+      background: rgba(51, 255, 102, 0.25);
+      border-color: #aaffbb;
+      color: #ffffff;
+    }
+
+    /* Left Drawer / Itinerary Planner */
+    #flight-planner {
+      position: absolute;
+      top: 145px;
+      left: 16px;
+      z-index: 10;
+      width: 380px;
+      max-height: calc(100vh - 280px);
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--crt-dim-green) transparent;
+    }
+
+    .section-title {
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      color: #66cc88;
+      border-bottom: 1px dashed rgba(51, 255, 102, 0.3);
+      padding-bottom: 4px;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    .flight-quick-bar {
+      display: flex;
+      gap: 6px;
+    }
+
+    .input-retro {
+      background: rgba(0, 15, 6, 0.8);
+      border: 1px solid rgba(51, 255, 102, 0.4);
+      color: #88ffaa;
+      font-family: var(--font-mono);
+      padding: 6px 10px;
+      font-size: 13px;
+      border-radius: 2px;
+      width: 100%;
+      outline: none;
+    }
+
+    .input-retro:focus {
+      border-color: var(--crt-green);
+      box-shadow: 0 0 8px rgba(51, 255, 102, 0.4);
+    }
+
+    .waypoint-card {
+      background: rgba(10, 30, 18, 0.4);
+      border-left: 3px solid var(--crt-green);
+      padding: 8px 10px;
+      position: relative;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .waypoint-card.layover {
+      border-left: 3px solid var(--crt-amber);
+      background: rgba(30, 24, 10, 0.3);
+    }
+
+    .waypoint-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .code-badge {
+      font-weight: bold;
+      color: #ffffff;
+      background: rgba(51, 255, 102, 0.2);
+      padding: 2px 6px;
+      border-radius: 2px;
+      letter-spacing: 1px;
+    }
+
+    .btn-del {
+      background: transparent;
+      border: none;
+      color: #ff6666;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 4px;
+    }
+
+    .btn-del:hover {
+      color: #ff2222;
+    }
+
+    .autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #021208;
+      border: 1px solid var(--crt-green);
+      max-height: 180px;
+      overflow-y: auto;
+      z-index: 100;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.8);
+      display: none;
+    }
+
+    .autocomplete-item {
+      padding: 6px 10px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(51, 255, 102, 0.1);
+      font-size: 11px;
+    }
+
+    .autocomplete-item:hover {
+      background: var(--crt-green);
+      color: #031408;
+    }
+
+    /* Bottom Control Bar / Time Engine */
+    #bottom-bar {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 10;
+      padding: 14px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .time-readout-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .clock-display {
+      font-family: var(--font-crt);
+      font-size: 30px;
+      color: #aaffbb;
+      text-shadow: 0 0 10px rgba(51, 255, 102, 0.7);
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .clock-display small {
+      font-size: 16px;
+      color: #559966;
+    }
+
+    .sliders-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      background: rgba(0, 15, 8, 0.4);
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid rgba(51, 255, 102, 0.2);
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .slider-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #88cc99;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #0d2818;
+      outline: none;
+      border-radius: 2px;
+      border: 1px solid rgba(51, 255, 102, 0.3);
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--crt-green);
+      cursor: pointer;
+      box-shadow: 0 0 6px var(--crt-green);
+      border-radius: 1px;
+    }
+
+    /* Floating Navigation Cluster Bottom-Right */
+    #nav-cluster {
+      position: absolute;
+      bottom: 185px;
+      right: 16px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-nav-icon {
+      width: 38px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    /* Modal dialog */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.85);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-dialog {
+      width: 100%;
+      max-width: 650px;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 24px;
+      line-height: 1.6;
+    }
+
+    .modal-dialog h2 {
+      font-family: var(--font-crt);
+      font-size: 28px;
+      margin-bottom: 12px;
+      color: #99ffaa;
+      border-bottom: 1px solid var(--crt-green);
+      padding-bottom: 6px;
+    }
+
+    .modal-dialog p {
+      margin-bottom: 12px;
+      color: #c0e0c8;
+    }
+
+    .share-badge {
+      display: inline-block;
+      background: rgba(0, 229, 255, 0.2);
+      color: var(--crt-cyan);
+      padding: 2px 8px;
+      border-radius: 2px;
+      border: 1px solid var(--crt-cyan);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Retro CRT Filter Layers -->
+  <div class="crt-overlay"></div>
+  <div class="crt-flicker"></div>
+
+  <!-- 3D Three.js Surface -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- Top-Left: Tactical Telemetry & Active Status -->
+  <div id="top-left-panel" class="glowing-box">
+    <div class="hud-title">
+      <i data-lucide="radio" style="width:20px;height:20px;color:var(--crt-green);"></i>
+      NORAD // AIR DEFENSE SECTOR 7
+    </div>
+    <div style="font-size: 10px; color:#448855; margin-bottom: 6px;">
+      PROJECT: WARGAMES HOLOGRAM V2026.10 &bull; FLIGHT TRACKER
+    </div>
+    <div class="telemetry-row">
+      <span class="label">CURRENT FLIGHT:</span>
+      <span class="val amber" id="flight-tag-readout">EY426 (GVA &rarr; AUH &rarr; CNX)</span>
+    </div>
+    <div class="telemetry-row">
+      <span class="label">AIRCRAFT POSITION:</span>
+      <span class="val" id="plane-coords-readout">LAT 24.44&deg;N &bull; LON 54.65&deg;E</span>
+    </div>
+    <div class="telemetry-row">
+      <span class="label">ALTITUDE / STATUS:</span>
+      <span class="val" id="flight-status-readout">CRUISE &bull; 37,000 FT</span>
+    </div>
+    <div class="telemetry-row">
+      <span class="label">TERMINATOR STATUS:</span>
+      <span class="val" id="sun-status-readout" style="color:var(--crt-green)">DAYLIGHT PHOSPHOR (ACTIVE)</span>
+    </div>
+    <div class="telemetry-row">
+      <span class="label">CAMERA MODE:</span>
+      <span class="val" id="camera-mode-readout">AUTO-CHASE OVERHEAD</span>
+    </div>
+  </div>
+
+  <!-- Top-Right: Quick Actions -->
+  <div id="top-right-bar">
+    <button class="btn-retro" id="btn-share-url" title="Copy shareable link encoded with full itinerary & times">
+      <i data-lucide="share-2" style="width:14px;height:14px;"></i> COPY FLIGHT URL
+    </button>
+    <button class="btn-retro" id="btn-toggle-planner">
+      <i data-lucide="list-plus" style="width:14px;height:14px;"></i> ITINERARY
+    </button>
+    <button class="btn-retro" id="btn-about">
+      <i data-lucide="info" style="width:14px;height:14px;"></i> ABOUT / LOG
+    </button>
+  </div>
+
+  <!-- Left Drawer: Flight & Airport Manual Planner -->
+  <div id="flight-planner" class="glowing-box">
+    <div class="section-title">FLIGHT NUMBER SEARCH / PRESETS</div>
+    <div class="flight-quick-bar">
+      <input type="text" id="flight-num-input" class="input-retro" placeholder="E.g. EY426, AF007..." value="EY426" />
+      <button class="btn-retro" id="btn-load-flight">LOAD</button>
+    </div>
+
+    <div class="section-title">ITINERARY STOPS & TIMES</div>
+    <div id="waypoints-container" style="display:flex; flex-direction:column; gap:8px;">
+      <!-- Dynamic airport items injected here -->
+    </div>
+
+    <div class="section-title">ADD WAYPOINT / AIRPORT</div>
+    <div style="position:relative;">
+      <input type="text" id="airport-search-input" class="input-retro" placeholder="Type city or IATA (e.g. Geneva, DXB)..." autocomplete="off" />
+      <div id="autocomplete-box" class="autocomplete-list"></div>
+    </div>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <input type="number" id="leg-duration-input" class="input-retro" style="width:80px;" value="6.5" step="0.5" min="0.5" />
+      <span style="font-size:11px; color:#559966;">Flight Hrs to next stop</span>
+    </div>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <input type="number" id="layover-duration-input" class="input-retro" style="width:80px;" value="2.0" step="0.5" min="0" />
+      <span style="font-size:11px; color:#ffaa22;">Layover Hrs at this stop</span>
+    </div>
+    <button class="btn-retro" id="btn-add-waypoint" style="justify-content:center;">
+      <i data-lucide="plus-circle" style="width:14px;height:14px;"></i> APPEND AIRPORT TO ROUTE
+    </button>
+
+    <div style="margin-top:4px;">
+      <button class="btn-retro" id="btn-restore-etihad" style="width:100%; justify-content:center; border-color:var(--crt-amber); color:var(--crt-amber);">
+        &bull; RESET TO EY426 (GVA &rarr; AUH &rarr; CNX) &bull;
+      </button>
+    </div>
+  </div>
+
+  <!-- Bottom-Right Navigation Cluster -->
+  <div id="nav-cluster">
+    <button class="btn-retro btn-nav-icon" id="btn-cam-recenter" title="Recenter and Chase Aircraft">
+      <i data-lucide="crosshair" style="width:18px;height:18px;"></i>
+    </button>
+    <button class="btn-retro btn-nav-icon" id="btn-zoom-in" title="Zoom In">
+      <i data-lucide="plus" style="width:18px;height:18px;"></i>
+    </button>
+    <button class="btn-retro btn-nav-icon" id="btn-zoom-out" title="Zoom Out">
+      <i data-lucide="minus" style="width:18px;height:18px;"></i>
+    </button>
+    <button class="btn-retro btn-nav-icon" id="btn-reset-north" title="Reset North">
+      <i data-lucide="compass" id="compass-icon" style="width:18px;height:18px; transition: transform 0.1s linear;"></i>
+    </button>
+  </div>
+
+  <!-- Bottom Controls: Timeline & Daylight scrubbing -->
+  <div id="bottom-bar" class="glowing-box">
+    <div class="time-readout-row">
+      <div class="clock-display">
+        <span id="hud-clock-time">00:00:00</span>
+        <small id="hud-clock-date">UTC 2026-10-29</small>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="btn-retro" id="btn-play-pause">
+          <i data-lucide="pause" id="play-pause-icon" style="width:14px;height:14px;"></i>
+          <span id="play-pause-label">PAUSE</span>
+        </button>
+        <button class="btn-retro" id="btn-reverse-direction" title="Toggle Forward / Backward Time Direction">
+          <i data-lucide="arrow-left-right" style="width:14px;height:14px;"></i>
+          <span id="direction-label">FWD (&gt;&gt;)</span>
+        </button>
+        <button class="btn-retro" id="btn-reset-now">NOW</button>
+      </div>
+    </div>
+
+    <!-- Triple Slider Hierarchy for Year, Day of Year, and Hour -->
+    <div class="sliders-grid">
+      <div class="slider-group">
+        <label>
+          <span>FLIGHT SCRUBBER (ITINERARY PROGRESS)</span>
+          <span id="route-progress-label">0%</span>
+        </label>
+        <input type="range" id="slider-flight-progress" min="0" max="1000" value="0" />
+      </div>
+
+      <div class="slider-group">
+        <label>
+          <span>HOUR OF DAY (SOLAR ANGLE)</span>
+          <span id="slider-hour-val">12.00 H</span>
+        </label>
+        <input type="range" id="slider-hour" min="0" max="23.99" step="0.05" value="12" />
+      </div>
+
+      <div class="slider-group">
+        <label>
+          <span>DAY OF YEAR (SEASONAL TILT)</span>
+          <span id="slider-day-val">DAY 302</span>
+        </label>
+        <input type="range" id="slider-day" min="1" max="365" step="1" value="302" />
+      </div>
+
+      <div class="slider-group">
+        <label>
+          <span>CALENDAR YEAR (1970 - 2035)</span>
+          <span id="slider-year-val">2026</span>
+        </label>
+        <input type="range" id="slider-year" min="1970" max="2035" step="1" value="2026" />
+      </div>
+
+      <div class="slider-group">
+        <label>
+          <span>WARP TIME ACCELERATION</span>
+          <span id="slider-speed-val">100x REAL-TIME</span>
+        </label>
+        <input type="range" id="slider-speed" min="1" max="3600" step="1" value="300" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Dialog: About & AI Provenance -->
+  <div id="about-modal" class="modal-overlay">
+    <div class="modal-dialog glowing-box">
+      <h2>NORAD / WARGAMES 1983 HOLOGRAM RADAR</h2>
+      <p>
+        <strong>CartoJam Flight Operations:</strong> A complete, standalone 3D interactive holographic vector globe reminiscent of <em>WarGames</em> (1983, Matthew Broderick / WOPR) and NORAD air defense scopes.
+      </p>
+      <p>
+        <strong>Features Included:</strong>
+      </p>
+      <ul style="margin-left: 20px; margin-bottom: 15px; color: #aaffbb;">
+        <li><strong>Dual-Color CRT Terminator:</strong> Real-time astronomical solar position calculations. Sunlight illuminates land in glowing phosphor emerald green; darkness shines in deep stealth crimson/amber CRT rays.</li>
+        <li><strong>Great Circle Arc Computation:</strong> Spherical SLERP curves elevated in parabolic 3D flight arcs with layover waiting stops at transit hubs.</li>
+        <li><strong>Auto-Chase & Manual Takeover:</strong> The camera locks overhead onto the active aircraft; touching or rotating the mouse smoothly passes camera authority to the user. Click the target crosshair button to re-engage auto-chase.</li>
+        <li><strong>URL Sharing Engine:</strong> Click <em>"Copy Flight URL"</em> to send any itinerary, airport hops, and timestamps to friends via an encoded hash.</li>
+        <li><strong>100% Offline Single-File Architecture:</strong> No web services required to render continents, graticules, or vectors.</li>
+      </ul>
+      <p>
+        <strong>Itinerary Preloaded:</strong> Etihad flight <strong>EY426</strong> departing Geneva Cointrin (<code>GVA</code>), layover at Abu Dhabi International (<code>AUH</code>), and continuing to Chiang Mai (<code>CNX</code>).
+      </p>
+      <div style="text-align: right; margin-top: 18px;">
+        <button class="btn-retro" id="btn-close-modal">DISMISS SYSTEM PROMPT</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* =====================================================================
+       AIRPORT DATABASE & CONTINENT VECTOR OUTLINES
+       ===================================================================== */
+    const AIRPORTS_DB = [
+      { code: 'GVA', name: 'Geneva Cointrin', city: 'Geneva', country: 'Switzerland', lat: 46.2381, lon: 6.1089 },
+      { code: 'AUH', name: 'Abu Dhabi International', city: 'Abu Dhabi', country: 'UAE', lat: 24.4330, lon: 54.6511 },
+      { code: 'CNX', name: 'Chiang Mai International', city: 'Chiang Mai', country: 'Thailand', lat: 18.7677, lon: 98.9626 },
+      { code: 'DXB', name: 'Dubai International', city: 'Dubai', country: 'UAE', lat: 25.2532, lon: 55.3657 },
+      { code: 'CDG', name: 'Paris Charles de Gaulle', city: 'Paris', country: 'France', lat: 49.0097, lon: 2.5479 },
+      { code: 'LHR', name: 'London Heathrow', city: 'London', country: 'United Kingdom', lat: 51.4700, lon: -0.4543 },
+      { code: 'JFK', name: 'John F Kennedy Intl', city: 'New York', country: 'USA', lat: 40.6413, lon: -73.7781 },
+      { code: 'HND', name: 'Tokyo Haneda', city: 'Tokyo', country: 'Japan', lat: 35.5494, lon: 139.7798 },
+      { code: 'SIN', name: 'Singapore Changi', city: 'Singapore', country: 'Singapore', lat: 1.3644, lon: 103.9915 },
+      { code: 'BKK', name: 'Suvarnabhumi Intl', city: 'Bangkok', country: 'Thailand', lat: 13.6900, lon: 100.7501 },
+      { code: 'ZRH', name: 'Zurich Airport', city: 'Zurich', country: 'Switzerland', lat: 47.4582, lon: 8.5555 },
+      { code: 'FRA', name: 'Frankfurt Airport', city: 'Frankfurt', country: 'Germany', lat: 50.0379, lon: 8.5622 },
+      { code: 'SYD', name: 'Sydney Kingsford Smith', city: 'Sydney', country: 'Australia', lat: -33.9399, lon: 151.1753 },
+      { code: 'LAX', name: 'Los Angeles Intl', city: 'Los Angeles', country: 'USA', lat: 33.9416, lon: -118.4085 },
+      { code: 'DOH', name: 'Hamad International', city: 'Doha', country: 'Qatar', lat: 25.2731, lon: 51.6081 },
+      { code: 'LYS', name: 'Lyon Saint-Exupéry', city: 'Lyon', country: 'France', lat: 45.7256, lon: 5.0811 }
+    ];
+
+    // Normalized Continental Vector Polygons (WarGames 1980s Vector Aesthetic)
+    const CONTINENT_VECTORS = [
+      // Eurasia & Africa
+      [ [-9,36],[ -9,43],[ -1,43],[ -2,47],[  2,51],[  5,54],[  8,58],[ 18,55],[ 28,70],[ 60,70],[100,76],[170,68],
+        [170,60],[140,50],[120,38],[105,21],[100, 1],[ 80,10],[ 70,25],[ 50,28],[ 44,12],[ 50,-10],[ 30,-34],[ 18,-34],
+        [ 10,-5],[ -5, 5],[-17,14],[-10,30],[-5,36],[-9,36] ],
+      // Scandinavia & Baltic
+      [ [5,58],[10,54],[18,55],[24,65],[28,70],[20,70],[10,65],[5,58] ],
+      // North America
+      [ [-168,66],[-140,70],[-120,70],[-85,75],[-80,60],[-65,45],[-75,35],[-80,25],[-97,20],[-105,22],[-115,30],
+        [-125,50],[-140,60],[-165,60],[-168,66] ],
+      // South America
+      [ [-80,10],[-60,10],[-35,-5],[-38,-15],[-55,-40],[-70,-54],[-75,-45],[-70,-20],[-80,0],[-80,10] ],
+      // Australia
+      [ [114,-22],[120,-34],[135,-35],[150,-37],[152,-24],[142,-11],[130,-12],[114,-22] ],
+      // British Isles
+      [ [-5,50],[1,51],[ -1,58],[ -6,58],[ -5,50] ],
+      // Japan
+      [ [130,32],[133,34],[140,36],[141,43],[144,44],[141,38],[136,34],[130,32] ]
+    ];
+
+    /* =====================================================================
+       APP STATE & TIMING
+       ===================================================================== */
+    const GLOBE_RADIUS = 50;
+
+    const STATE = {
+      currentTimeMs: new Date('2026-10-29T06:00:00Z').getTime(),
+      timeSpeedMultiplier: 300,
+      isPlaying: true,
+      direction: 1, // 1 = forward, -1 = reverse
+      cameraFollow: true,
+      lastFrameTime: performance.now(),
+      itinerary: [
+        { code: 'GVA', layoverHrs: 0 },
+        { code: 'AUH', flightHrs: 6.5, layoverHrs: 2.5 },
+        { code: 'CNX', flightHrs: 6.0, layoverHrs: 0 }
+      ],
+      legs: []
+    };
+
+    /* =====================================================================
+       THREE.JS SETUP
+       ===================================================================== */
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020705);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
+    camera.position.set(0, 70, 150);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.minDistance = 60;
+    controls.maxDistance = 350;
+    controls.rotateSpeed = 0.6;
+
+    // Detect user camera intervention to pause auto-chase
+    controls.addEventListener('start', () => {
+      STATE.cameraFollow = false;
+      document.getElementById('camera-mode-readout').textContent = 'MANUAL OVERRIDE';
+      document.getElementById('camera-mode-readout').style.color = 'var(--crt-amber)';
+    });
+
+    /* =====================================================================
+       SHADER: WARGAMES DUAL CRT TERMINATOR (Day = Green, Night = Amber/Red)
+       ===================================================================== */
+    const globeVertexShader = `
+      varying vec3 vNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `;
+
+    const globeFragmentShader = `
+      uniform vec3 uSunDirection;
+      varying vec3 vNormal;
+      varying vec3 vWorldPosition;
+
+      void main() {
+        vec3 norm = normalize(vWorldPosition);
+        float sunDot = dot(norm, normalize(uSunDirection));
+
+        // Smooth transition at dawn/dusk terminator (-0.1 to +0.1)
+        float daylightFactor = smoothstep(-0.15, 0.15, sunDot);
+
+        // Day: Phosphor Matrix Green (#114422 to #22ff66)
+        vec3 dayColor = vec3(0.015, 0.08, 0.03) + vec3(0.05, 0.22, 0.09) * max(0.0, sunDot);
+
+        // Night: Stealth Amber/Red CRT Glow
+        vec3 nightColor = vec3(0.04, 0.008, 0.01) + vec3(0.06, 0.012, 0.018) * (1.0 - daylightFactor);
+
+        // Subtle Fresnel rim glow
+        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+        float rim = pow(1.0 - max(0.0, dot(viewDir, norm)), 2.8) * 0.45;
+        vec3 rimColor = mix(vec3(0.8, 0.15, 0.1), vec3(0.2, 1.0, 0.4), daylightFactor);
+
+        vec3 finalColor = mix(nightColor, dayColor, daylightFactor) + rimColor * rim;
+        gl_FragColor = vec4(finalColor, 1.0);
+      }
+    `;
+
+    const globeUniforms = {
+      uSunDirection: { value: new THREE.Vector3(1, 0, 0) }
+    };
+
+    const globeMaterial = new THREE.ShaderMaterial({
+      vertexShader: globeVertexShader,
+      fragmentShader: globeFragmentShader,
+      uniforms: globeUniforms
+    });
+
+    const globeMesh = new THREE.Mesh(new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64), globeMaterial);
+    scene.add(globeMesh);
+
+    // Glowing Holographic Atmosphere Halo
+    const atmosphereGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.018, 48, 48);
+    const atmosphereMat = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNorm;
+        void main() {
+          vNorm = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNorm;
+        void main() {
+          float intensity = pow(0.72 - dot(vNorm, vec3(0,0,1.0)), 2.2);
+          gl_FragColor = vec4(0.2, 1.0, 0.45, 1.0) * intensity * 0.6;
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true
+    });
+    scene.add(new THREE.Mesh(atmosphereGeo, atmosphereMat));
+
+    /* =====================================================================
+       COORDINATE CONVERSION & VECTOR GEOGRAPHY GENERATOR
+       ===================================================================== */
+    function latLonToVector3(lat, lon, radius = GLOBE_RADIUS) {
+      const phi = (90 - lat) * (Math.PI / 180);
+      const theta = (lon + 180) * (Math.PI / 180);
+      return new THREE.Vector3(
+        -radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.cos(phi),
+        radius * Math.sin(phi) * Math.sin(theta)
+      );
+    }
+
+    // Latitude & Longitude Graticule (15 deg intervals)
+    const graticuleGroup = new THREE.Group();
+    const gridMat = new THREE.LineBasicMaterial({
+      color: 0x22aa44,
+      transparent: true,
+      opacity: 0.18,
+      linewidth: 1
+    });
+
+    for (let lat = -75; lat <= 75; lat += 15) {
+      const pts = [];
+      for (let lon = -180; lon <= 180; lon += 4) {
+        pts.push(latLonToVector3(lat, lon, GLOBE_RADIUS + 0.1));
+      }
+      graticuleGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gridMat));
+    }
+
+    for (let lon = -180; lon < 180; lon += 15) {
+      const pts = [];
+      for (let lat = -85; lat <= 85; lat += 4) {
+        pts.push(latLonToVector3(lat, lon, GLOBE_RADIUS + 0.1));
+      }
+      graticuleGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gridMat));
+    }
+    scene.add(graticuleGroup);
+
+    // Continental Outline Vectors (WarGames CRT Vector Mode)
+    const continentMat = new THREE.LineBasicMaterial({
+      color: 0x44ff77,
+      transparent: true,
+      opacity: 0.85,
+      linewidth: 2
+    });
+
+    CONTINENT_VECTORS.forEach(poly => {
+      const pts = poly.map(pt => latLonToVector3(pt[1], pt[0], GLOBE_RADIUS + 0.25));
+      const geom = new THREE.BufferGeometry().setFromPoints(pts);
+      scene.add(new THREE.Line(geom, continentMat));
+    });
+
+    /* =====================================================================
+       DYNAMIC FLIGHT SYSTEM & GREAT-CIRCLE ARCS
+       ===================================================================== */
+    const flightGroup = new THREE.Group();
+    scene.add(flightGroup);
+
+    // Aircraft 3D Needle Glyph
+    const aircraftGeo = new THREE.ConeGeometry(0.8, 3.2, 5);
+    aircraftGeo.rotateX(Math.PI / 2);
+    const aircraftMat = new THREE.MeshBasicMaterial({ color: 0xffff44, wireframe: false });
+    const aircraftMesh = new THREE.Mesh(aircraftGeo, aircraftMat);
+
+    // Glowing aircraft pulse ring
+    const ringGeo = new THREE.RingGeometry(1.2, 1.8, 16);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    aircraftMesh.add(ringMesh);
+
+    scene.add(aircraftMesh);
+
+    // Build or Rebuild Full Route Legs and Trajectories
+    function recalculateFlightSchedule() {
+      // Clear prior route meshes
+      while (flightGroup.children.length > 0) {
+        const obj = flightGroup.children[0];
+        flightGroup.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+      }
+
+      STATE.legs = [];
+      let accumulatedTime = STATE.currentTimeMs;
+
+      for (let i = 0; i < STATE.itinerary.length; i++) {
+        const item = STATE.itinerary[i];
+        const airport = AIRPORTS_DB.find(a => a.code === item.code) || {
+          code: item.code, name: item.code, city: item.code, lat: 0, lon: 0
+        };
+
+        const leg = {
+          fromAirport: airport,
+          toAirport: null,
+          departureTime: accumulatedTime + (item.layoverHrs || 0) * 3600 * 1000,
+          flightDurationMs: 0,
+          arrivalTime: 0,
+          points: [],
+          arcCurve: null
+        };
+
+        if (i < STATE.itinerary.length - 1) {
+          const nextItem = STATE.itinerary[i + 1];
+          const nextAirport = AIRPORTS_DB.find(a => a.code === nextItem.code) || {
+            code: nextItem.code, name: nextItem.code, city: nextItem.code, lat: 10, lon: 10
+          };
+          leg.toAirport = nextAirport;
+          leg.flightDurationMs = (nextItem.flightHrs || 4) * 3600 * 1000;
+          leg.arrivalTime = leg.departureTime + leg.flightDurationMs;
+
+          // Generate 3D Great Circle Parabolic Arc
+          const startV = latLonToVector3(airport.lat, airport.lon, GLOBE_RADIUS + 0.3);
+          const endV = latLonToVector3(nextAirport.lat, nextAirport.lon, GLOBE_RADIUS + 0.3);
+
+          const arcPoints = [];
+          const numSamples = 60;
+          for (let step = 0; step <= numSamples; step++) {
+            const frac = step / numSamples;
+            // Spherical SLERP interpolation
+            const p = new THREE.Vector3().lerpVectors(startV, endV, frac).normalize();
+            // Parabolic altitude bump (max 7 units above globe)
+            const altitude = Math.sin(frac * Math.PI) * 7.5;
+            p.multiplyScalar(GLOBE_RADIUS + 0.4 + altitude);
+            arcPoints.push(p);
+          }
+
+          leg.arcCurve = new THREE.CatmullRomCurve3(arcPoints);
+          leg.points = arcPoints;
+
+          // Visual Arc Mesh
+          const arcGeom = new THREE.BufferGeometry().setFromPoints(arcPoints);
+          const arcLine = new THREE.Line(arcGeom, new THREE.LineDashedMaterial({
+            color: 0x00e5ff,
+            dashSize: 1.5,
+            gapSize: 0.8,
+            linewidth: 2
+          }));
+          arcLine.computeLineDistances();
+          flightGroup.add(arcLine);
+
+          accumulatedTime = leg.arrivalTime;
+        }
+
+        STATE.legs.push(leg);
+
+        // Waypoint Ground Marker Dot
+        const wpPos = latLonToVector3(airport.lat, airport.lon, GLOBE_RADIUS + 0.3);
+        const wpMarker = new THREE.Mesh(
+          new THREE.SphereGeometry(0.8, 12, 12),
+          new THREE.MeshBasicMaterial({ color: 0x33ff66 })
+        );
+        wpMarker.position.copy(wpPos);
+        flightGroup.add(wpMarker);
+      }
+
+      renderWaypointsUI();
+    }
+
+    /* =====================================================================
+       REAL SOLAR POSITION CALCULATION (Day/Night Terminator)
+       ===================================================================== */
+    function updateSunDirection(date) {
+      // Day of year
+      const startOfYear = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+      const dayOfYear = Math.floor((date - startOfYear) / (24 * 3600 * 1000)) + 1;
+      
+      // Solar declination (tilt): max 23.44 deg at solstice
+      const declinationRad = 23.44 * (Math.PI / 180) * Math.sin(((dayOfYear - 81) / 365.25) * 2 * Math.PI);
+
+      // UTC Solar Longitude (Sun is at prime meridian at 12:00 UTC)
+      const hours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+      const sunLon = (12.0 - hours) * 15.0; // degrees
+
+      const sunVec = latLonToVector3(declinationRad * (180 / Math.PI), sunLon, 1.0).normalize();
+      globeUniforms.uSunDirection.value.copy(sunVec);
+
+      // Update HUD status
+      const currentPos = aircraftMesh.position.clone().normalize();
+      const dotProduct = currentPos.dot(sunVec);
+      const sunStatus = document.getElementById('sun-status-readout');
+      if (dotProduct > 0.05) {
+        sunStatus.textContent = 'DAYLIGHT ZONE (PHOSPHOR GREEN)';
+        sunStatus.style.color = 'var(--crt-green)';
+      } else {
+        sunStatus.textContent = 'NIGHT SECTOR (INFRARED AMBER/RED)';
+        sunStatus.style.color = 'var(--crt-red)';
+      }
+    }
+
+    /* =====================================================================
+       AIRCRAFT MOTION & AUTO-CHASE LOGIC
+       ===================================================================== */
+    function updateAircraftPhysics() {
+      if (!STATE.legs || STATE.legs.length === 0) return;
+
+      const firstDep = STATE.legs[0].departureTime;
+      const lastArr = STATE.legs[STATE.legs.length - 2]?.arrivalTime || (firstDep + 3600000);
+      const totalSpan = Math.max(1, lastArr - firstDep);
+
+      // Current Route Progress
+      const clampedTime = Math.min(Math.max(STATE.currentTimeMs, firstDep), lastArr);
+      const globalProgress = (clampedTime - firstDep) / totalSpan;
+      document.getElementById('slider-flight-progress').value = Math.floor(globalProgress * 1000);
+      document.getElementById('route-progress-label').textContent = `${Math.floor(globalProgress * 100)}%`;
+
+      let activeLeg = null;
+      let legProgress = 0;
+      let isLayingOver = false;
+      let activeAirportName = '';
+
+      for (let i = 0; i < STATE.legs.length; i++) {
+        const leg = STATE.legs[i];
+        if (STATE.currentTimeMs < leg.departureTime) {
+          // Waiting at origin or in layover
+          isLayingOver = true;
+          activeAirportName = leg.fromAirport.code;
+          const pos = latLonToVector3(leg.fromAirport.lat, leg.fromAirport.lon, GLOBE_RADIUS + 0.5);
+          aircraftMesh.position.copy(pos);
+          aircraftMesh.lookAt(pos.clone().multiplyScalar(1.5));
+          break;
+        } else if (leg.arrivalTime && STATE.currentTimeMs <= leg.arrivalTime) {
+          activeLeg = leg;
+          legProgress = (STATE.currentTimeMs - leg.departureTime) / leg.flightDurationMs;
+          break;
+        }
+      }
+
+      if (activeLeg && activeLeg.arcCurve) {
+        const t = THREE.MathUtils.clamp(legProgress, 0.0001, 0.9999);
+        const pt = activeLeg.arcCurve.getPointAt(t);
+        const nextPt = activeLeg.arcCurve.getPointAt(Math.min(1.0, t + 0.01));
+
+        aircraftMesh.position.copy(pt);
+        aircraftMesh.lookAt(nextPt);
+        ringMesh.rotation.z += 0.05;
+
+        // Telemetry readout
+        const latEst = (Math.asin(pt.y / pt.length()) * 180 / Math.PI).toFixed(2);
+        const lonEst = (Math.atan2(pt.z, -pt.x) * 180 / Math.PI - 180).toFixed(2);
+        document.getElementById('plane-coords-readout').textContent = `LAT ${latEst}° • LON ${lonEst}°`;
+        document.getElementById('flight-status-readout').textContent = `EN ROUTE TO ${activeLeg.toAirport.code} • 38,000 FT`;
+        document.getElementById('flight-status-readout').style.color = '#aaffbb';
+      } else if (isLayingOver) {
+        document.getElementById('flight-status-readout').textContent = `LAYOVER / GROUND HOLD @ ${activeAirportName}`;
+        document.getElementById('flight-status-readout').style.color = 'var(--crt-amber)';
+      } else {
+        // Beyond final leg
+        const lastLeg = STATE.legs[STATE.legs.length - 2];
+        if (lastLeg && lastLeg.toAirport) {
+          const endPos = latLonToVector3(lastLeg.toAirport.lat, lastLeg.toAirport.lon, GLOBE_RADIUS + 0.5);
+          aircraftMesh.position.copy(endPos);
+          document.getElementById('flight-status-readout').textContent = `ARRIVED @ ${lastLeg.toAirport.code} (MISSION COMPLETE)`;
+          document.getElementById('flight-status-readout').style.color = 'var(--crt-green)';
+        }
+      }
+
+      // Smooth Overhead Camera Auto-Chase
+      if (STATE.cameraFollow) {
+        const planeNorm = aircraftMesh.position.clone().normalize();
+        const targetCamPos = planeNorm.clone().multiplyScalar(GLOBE_RADIUS + 90);
+        camera.position.lerp(targetCamPos, 0.05);
+        controls.target.lerp(aircraftMesh.position, 0.05);
+      }
+    }
+
+    /* =====================================================================
+       CLOCK & SLIDER SYNCHRONIZATION
+       ===================================================================== */
+    function syncSlidersToCurrentTime() {
+      const d = new Date(STATE.currentTimeMs);
+
+      // UTC Clock readout
+      const hh = String(d.getUTCHours()).padStart(2, '0');
+      const mm = String(d.getUTCMinutes()).padStart(2, '0');
+      const ss = String(d.getUTCSeconds()).padStart(2, '0');
+      document.getElementById('hud-clock-time').textContent = `${hh}:${mm}:${ss}`;
+      document.getElementById('hud-clock-date').textContent = `UTC ${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+
+      // Hour Slider (0 - 24)
+      const hourDec = d.getUTCHours() + d.getUTCMinutes() / 60;
+      document.getElementById('slider-hour').value = hourDec.toFixed(2);
+      document.getElementById('slider-hour-val').textContent = `${hourDec.toFixed(1)} H`;
+
+      // Day of Year Slider (1 - 365)
+      const startOfYear = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const dayOfYear = Math.floor((d - startOfYear) / (24 * 3600 * 1000)) + 1;
+      document.getElementById('slider-day').value = dayOfYear;
+      document.getElementById('slider-day-val').textContent = `DAY ${dayOfYear}`;
+
+      // Year Slider
+      document.getElementById('slider-year').value = d.getUTCFullYear();
+      document.getElementById('slider-year-val').textContent = d.getUTCFullYear();
+    }
+
+    function setTimeFromSliders() {
+      const year = parseInt(document.getElementById('slider-year').value, 10);
+      const dayOfYear = parseInt(document.getElementById('slider-day').value, 10);
+      const hourDec = parseFloat(document.getElementById('slider-hour').value);
+
+      const target = new Date(Date.UTC(year, 0, 1));
+      target.setUTCDate(dayOfYear);
+      const hours = Math.floor(hourDec);
+      const minutes = Math.floor((hourDec - hours) * 60);
+      target.setUTCHours(hours, minutes, 0, 0);
+
+      STATE.currentTimeMs = target.getTime();
+      syncSlidersToCurrentTime();
+      updateSunDirection(target);
+    }
+
+    /* =====================================================================
+       URL SHARE ENCODER & DECODER
+       ===================================================================== */
+    function encodeStateToUrlHash() {
+      const payload = {
+        f: document.getElementById('flight-num-input').value.trim() || 'EY426',
+        t: STATE.currentTimeMs,
+        itin: STATE.itinerary
+      };
+      const hashStr = encodeURIComponent(btoa(JSON.stringify(payload)));
+      window.location.hash = hashStr;
+      return window.location.href;
+    }
+
+    function decodeStateFromUrlHash() {
+      if (!window.location.hash || window.location.hash.length < 3) return false;
+      try {
+        const raw = window.location.hash.substring(1);
+        const json = JSON.parse(atob(decodeURIComponent(raw)));
+        if (json.itin && Array.isArray(json.itin)) {
+          STATE.itinerary = json.itin;
+        }
+        if (json.t) {
+          STATE.currentTimeMs = json.t;
+        }
+        if (json.f) {
+          document.getElementById('flight-num-input').value = json.f;
+          document.getElementById('flight-tag-readout').textContent = json.f;
+        }
+        return true;
+      } catch (err) {
+        console.warn('Could not decode URL hash parameters', err);
+        return false;
+      }
+    }
+
+    /* =====================================================================
+       UI CONTROLS & EVENT LISTENERS
+       ===================================================================== */
+    function renderWaypointsUI() {
+      const container = document.getElementById('waypoints-container');
+      container.innerHTML = '';
+
+      STATE.itinerary.forEach((item, idx) => {
+        const ap = AIRPORTS_DB.find(a => a.code === item.code) || { name: item.code, city: item.code };
+        const card = document.createElement('div');
+        card.className = `waypoint-card ${item.layoverHrs > 0 ? 'layover' : ''}`;
+        
+        let legInfo = '';
+        if (idx > 0) {
+          legInfo = `&rarr; Leg ${idx}: ${item.flightHrs || 4}h Flight`;
+        }
+
+        let layoverInfo = '';
+        if (item.layoverHrs > 0) {
+          layoverInfo = ` &bull; <span style="color:var(--crt-amber)">${item.layoverHrs}h Layover</span>`;
+        }
+
+        card.innerHTML = `
+          <div class="waypoint-header">
+            <div>
+              <span class="code-badge">${item.code}</span>
+              <strong style="margin-left:6px; color:#ffffff;">${ap.city}</strong>
+            </div>
+            ${STATE.itinerary.length > 2 ? `<button class="btn-del" data-index="${idx}" title="Remove Stop">&times;</button>` : ''}
+          </div>
+          <div style="font-size:11px; color:#88cc99;">
+            ${legInfo} ${layoverInfo}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      // Hook delete handlers
+      container.querySelectorAll('.btn-del').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const index = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+          STATE.itinerary.splice(index, 1);
+          recalculateFlightSchedule();
+        });
+      });
+    }
+
+    // Autocomplete for Airport input
+    const searchInput = document.getElementById('airport-search-input');
+    const autoBox = document.getElementById('autocomplete-box');
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.toLowerCase().trim();
+      if (!q) {
+        autoBox.style.display = 'none';
+        return;
+      }
+      const matches = AIRPORTS_DB.filter(a =>
+        a.code.toLowerCase().includes(q) ||
+        a.city.toLowerCase().includes(q) ||
+        a.name.toLowerCase().includes(q)
+      );
+
+      if (matches.length === 0) {
+        autoBox.style.display = 'none';
+        return;
+      }
+
+      autoBox.innerHTML = '';
+      matches.forEach(m => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.innerHTML = `<strong>${m.code}</strong> - ${m.city} (${m.name})`;
+        item.addEventListener('click', () => {
+          searchInput.value = m.code;
+          autoBox.style.display = 'none';
+        });
+        autoBox.appendChild(item);
+      });
+      autoBox.style.display = 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!searchInput.contains(e.target) && !autoBox.contains(e.target)) {
+        autoBox.style.display = 'none';
+      }
+    });
+
+    // Append Waypoint button
+    document.getElementById('btn-add-waypoint').addEventListener('click', () => {
+      const code = searchInput.value.trim().toUpperCase();
+      if (!code) return;
+      const legHrs = parseFloat(document.getElementById('leg-duration-input').value) || 4;
+      const layoverHrs = parseFloat(document.getElementById('layover-duration-input').value) || 0;
+
+      STATE.itinerary.push({
+        code,
+        flightHrs: legHrs,
+        layoverHrs
+      });
+
+      searchInput.value = '';
+      recalculateFlightSchedule();
+    });
+
+    // Reset to Etienne's EY426 Etihad Flight
+    document.getElementById('btn-restore-etihad').addEventListener('click', () => {
+      STATE.itinerary = [
+        { code: 'GVA', layoverHrs: 0 },
+        { code: 'AUH', flightHrs: 6.5, layoverHrs: 2.5 },
+        { code: 'CNX', flightHrs: 6.0, layoverHrs: 0 }
+      ];
+      STATE.currentTimeMs = new Date('2026-10-29T06:00:00Z').getTime();
+      document.getElementById('flight-num-input').value = 'EY426';
+      document.getElementById('flight-tag-readout').textContent = 'EY426 (GVA → AUH → CNX)';
+      recalculateFlightSchedule();
+    });
+
+    // Time Scrubber Sliders
+    ['slider-year', 'slider-day', 'slider-hour'].forEach(id => {
+      document.getElementById(id).addEventListener('input', setTimeFromSliders);
+    });
+
+    // Flight route progress slider
+    document.getElementById('slider-flight-progress').addEventListener('input', (e) => {
+      if (!STATE.legs || STATE.legs.length === 0) return;
+      const frac = parseInt(e.target.value, 10) / 1000;
+      const firstDep = STATE.legs[0].departureTime;
+      const lastArr = STATE.legs[STATE.legs.length - 2]?.arrivalTime || (firstDep + 3600000);
+      STATE.currentTimeMs = firstDep + frac * (lastArr - firstDep);
+      syncSlidersToCurrentTime();
+      updateSunDirection(new Date(STATE.currentTimeMs));
+    });
+
+    // Speed Slider
+    document.getElementById('slider-speed').addEventListener('input', (e) => {
+      STATE.timeSpeedMultiplier = parseFloat(e.target.value);
+      document.getElementById('slider-speed-val').textContent = `${STATE.timeSpeedMultiplier}x REAL-TIME`;
+    });
+
+    // Play/Pause & Direction
+    document.getElementById('btn-play-pause').addEventListener('click', () => {
+      STATE.isPlaying = !STATE.isPlaying;
+      document.getElementById('play-pause-label').textContent = STATE.isPlaying ? 'PAUSE' : 'PLAY';
+      const icon = document.getElementById('play-pause-icon');
+      if (STATE.isPlaying) {
+        icon.setAttribute('data-lucide', 'pause');
+      } else {
+        icon.setAttribute('data-lucide', 'play');
+      }
+      lucide.createIcons();
+    });
+
+    document.getElementById('btn-reverse-direction').addEventListener('click', () => {
+      STATE.direction *= -1;
+      document.getElementById('direction-label').textContent = STATE.direction > 0 ? 'FWD (>>)' : 'REV (<<)';
+    });
+
+    document.getElementById('btn-reset-now').addEventListener('click', () => {
+      STATE.currentTimeMs = Date.now();
+      syncSlidersToCurrentTime();
+      updateSunDirection(new Date(STATE.currentTimeMs));
+    });
+
+    // Camera Recenter Button
+    document.getElementById('btn-cam-recenter').addEventListener('click', () => {
+      STATE.cameraFollow = true;
+      document.getElementById('camera-mode-readout').textContent = 'AUTO-CHASE OVERHEAD';
+      document.getElementById('camera-mode-readout').style.color = 'var(--crt-green)';
+    });
+
+    // Zoom Buttons
+    document.getElementById('btn-zoom-in').addEventListener('click', () => {
+      camera.position.sub(controls.target).multiplyScalar(0.85).add(controls.target);
+    });
+    document.getElementById('btn-zoom-out').addEventListener('click', () => {
+      camera.position.sub(controls.target).multiplyScalar(1.15).add(controls.target);
+    });
+
+    // North Compass Reset
+    document.getElementById('btn-reset-north').addEventListener('click', () => {
+      const radius = camera.position.distanceTo(controls.target);
+      camera.position.set(0, 0, radius);
+      controls.target.set(0, 0, 0);
+    });
+
+    // Copy Shareable URL
+    document.getElementById('btn-share-url').addEventListener('click', () => {
+      const shareUrl = encodeStateToUrlHash();
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        const btn = document.getElementById('btn-share-url');
+        btn.innerHTML = `<i data-lucide="check" style="width:14px;height:14px;"></i> LINK COPIED!`;
+        lucide.createIcons();
+        setTimeout(() => {
+          btn.innerHTML = `<i data-lucide="share-2" style="width:14px;height:14px;"></i> COPY FLIGHT URL`;
+          lucide.createIcons();
+        }, 2500);
+      });
+    });
+
+    // Toggle Planner Drawer
+    document.getElementById('btn-toggle-planner').addEventListener('click', () => {
+      const p = document.getElementById('flight-planner');
+      p.style.display = (p.style.display === 'none') ? 'flex' : 'none';
+    });
+
+    // About Modal
+    document.getElementById('btn-about').addEventListener('click', () => {
+      document.getElementById('about-modal').style.display = 'flex';
+    });
+    document.getElementById('btn-close-modal').addEventListener('click', () => {
+      document.getElementById('about-modal').style.display = 'none';
+    });
+
+    // Window Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    /* =====================================================================
+       INITIALIZATION & MAIN ANIMATION LOOP
+       ===================================================================== */
+    // Initialize lucide icons
+    lucide.createIcons();
+
+    // Check URL parameters or fallback to default Etihad route
+    if (!decodeStateFromUrlHash()) {
+      recalculateFlightSchedule();
+    } else {
+      recalculateFlightSchedule();
+    }
+
+    syncSlidersToCurrentTime();
+    updateSunDirection(new Date(STATE.currentTimeMs));
+
+    function animate(currentTimeStamp) {
+      requestAnimationFrame(animate);
+
+      const deltaMs = currentTimeStamp - STATE.lastFrameTime;
+      STATE.lastFrameTime = currentTimeStamp;
+
+      // Advance Time Engine
+      if (STATE.isPlaying) {
+        STATE.currentTimeMs += deltaMs * STATE.timeSpeedMultiplier * STATE.direction;
+        syncSlidersToCurrentTime();
+        updateSunDirection(new Date(STATE.currentTimeMs));
+      }
+
+      // Update flight coordinates & aircraft model
+      updateAircraftPhysics();
+
+      // Controls and camera update
+      controls.update();
+
+      // Update compass needle rotation based on polar azimuth
+      const compass = document.getElementById('compass-icon');
+      if (compass) {
+        const camAngle = Math.atan2(camera.position.x, camera.position.z) * (180 / Math.PI);
+        compass.style.transform = `rotate(${-camAngle}deg)`;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
