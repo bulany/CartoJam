@@ -18,7 +18,7 @@ All experiments run:
 
 ## 🗂️ Jams Index
 Browse the live portal at **[bulany.github.io/CartoJam](https://bulany.github.io/CartoJam/)** or explore the date-prefixed project folders in this repo:
-- `2026_10_29_wargames_flight_tracker/` — 1983 *WarGames* WOPR CRT flight tracker & daylight terminator globe.
+- `2026_10_29_flight_paths/` — 1983 WOPR CRT flight tracker & daylight terminator globe.
 - `2026_10_22_french_departments/` — 3D French departments explorer & topo/vector layers.
 - *...and earlier weekly prototypes.*
 
