@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WarGames 3D Flight Tracker | CartoJam WOPR Vector Hologram</title>
+    <meta
+      name="description"
+      content="1983 WOPR-styled CRT vector hologram 3D globe with real-time solar terminator, multi-leg flight tracking, Great Circle trajectories, and offline-first cartography."
+    />
+    <meta property="og:title" content="WarGames 3D Flight Tracker" />
+    <meta
+      property="og:description"
+      content="1983 WOPR-styled CRT vector hologram 3D globe with real-time solar terminator, multi-leg flight tracking, Great Circle trajectories, and offline-first cartography."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Google Fonts for 1983 CRT Monospace Vector Aesthetic -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <!-- 3D Canvas Mount -->
+    <div id="webgl-container"></div>
+
+    <!-- 1983 CRT Scanlines & Vignette Filter Overlay -->
+    <div class="crt-overlay" aria-hidden="true"></div>
+
+    <!-- NORAD WOPR HUD Corner Brackets -->
+    <div class="hud-corner hud-corner-tl" aria-hidden="true"></div>
+    <div class="hud-corner hud-corner-tr" aria-hidden="true"></div>
+    <div class="hud-corner hud-corner-bl" aria-hidden="true"></div>
+    <div class="hud-corner hud-corner-br" aria-hidden="true"></div>
+
+    <!-- Top Header Bar -->
+    <header id="top-header" role="banner">
+      <div class="brand-section">
+        <span class="wopr-badge">NORAD // 1983</span>
+        <div>
+          <div class="title-text">3D FLIGHT TRACKER</div>
+          <div class="title-sub" id="flight-hud-readout">CARTOJAM SPATIAL CARTOGRAPHY // 2026_10_29_FLIGHT_PATHS</div>
+        </div>
+      </div>
+
+      <div class="center-telemetry" aria-label="Orbital Telemetry">
+        <div class="telemetry-item">
+          <span class="telemetry-label">SIMULATION UTC</span>
+          <span class="telemetry-val" id="hud-utc-clock">2026-10-29 17:56:00 UTC</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">SUBSOLAR POINT</span>
+          <span class="telemetry-val" id="hud-subsolar">-13.4°S 89.2°W</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">SOLAR DECLINATION</span>
+          <span class="telemetry-val" id="hud-declination">-13.4°</span>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <button id="relock-camera-btn" class="wopr-btn amber" title="Re-lock overhead auto-follow camera to plane">
+          ⌖ RE-LOCK CAMERA
+        </button>
+        <button id="share-btn" class="wopr-btn primary" title="Share current trip via URL hash">
+          🔗 SHARE TRIP
+        </button>
+        <button id="crt-fx-toggle" class="wopr-btn" title="Toggle 1983 CRT scanlines and curved vignette">
+          CRT FX
+        </button>
+        <button id="drawer-toggle-btn" class="wopr-btn" title="Toggle Flight Planner Drawer">
+          ✈ ITINERARY
+        </button>
+        <a href="./flash38.html" class="wopr-btn amber" id="alt-view-btn" style="text-decoration: none;" title="Switch to Alternate View (Gemini 3.8 Flash)">
+          ◈ ALT VIEW 1
+        </a>
+        <a href="./flash39.html" class="wopr-btn amber" id="alt-view-btn" style="text-decoration: none;" title="Switch to Alternate View (Gemini 3.8 Flash)">
+          ◈ ALT VIEW 2
+        </a>
+        <button id="about-btn" class="wopr-btn" title="About 3D Flight Tracker">
+          [ ? ]
+        </button>
+      </div>
+    </header>
+
+    <!-- Left HUD Drawer: Dual-Mode Flight & Itinerary Builder -->
+    <aside id="flight-drawer" role="complementary" aria-label="Flight Itinerary Control Panel">
+      <div class="drawer-header">
+        <span class="drawer-title">FLIGHT CONTROL SYSTEM</span>
+        <button id="drawer-close-btn" class="wopr-btn danger" style="padding: 2px 7px; font-size: 10px;" aria-label="Close drawer">✕</button>
+      </div>
+
+      <div class="drawer-tabs">
+        <button class="tab-btn active" data-tab="lookup">FLIGHT SEARCH</button>
+        <button class="tab-btn" data-tab="manual">MANUAL PLANNER</button>
+      </div>
+
+      <div class="drawer-body">
+        <!-- MODE A: Callsign / Flight Lookup -->
+        <div id="tab-lookup-pane">
+          <div class="input-group">
+            <label for="flight-search-input" class="input-label">ENTER CALLSIGN / FLIGHT NUMBER</label>
+            <div style="display: flex; gap: 6px;">
+              <input
+                type="text"
+                id="flight-search-input"
+                class="wopr-input"
+                placeholder="e.g. BA15, QF1, SQ22, AF001..."
+                value="BA15"
+              />
+              <button id="flight-search-btn" class="wopr-btn primary">SEARCH</button>
+            </div>
+          </div>
+
+          <!-- Quick Preset Pill -->
+          <div class="preset-pill-bar">
+            <button id="preset-ba15" class="preset-pill">
+              ★ PRESET: Load Kangaroo Route: BA15 (LHR ➔ SIN ➔ SYD)
+            </button>
+          </div>
+
+          <div style="font-size: 10px; color: var(--crt-green-dim); margin-bottom: 6px; letter-spacing: 0.5px;">
+            AVAILABLE FLIGHT INSTANCES:
+          </div>
+
+          <!-- Selectable Flight Cards -->
+          <div id="flight-search-results" class="flight-results-container"></div>
+        </div>
+
+        <!-- MODE B: Manual Multi-Leg Builder -->
+        <div id="tab-manual-pane" style="display: none;">
+          <div style="margin-bottom: 12px; font-size: 11px; color: var(--crt-green-dim);">
+            BUILD CUSTOM MULTI-LEG ITINERARY WITH AUTOMATIC GREAT CIRCLE ARCS & LAYOVERS:
+          </div>
+
+          <div id="manual-legs-list"></div>
+
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button id="add-manual-leg-btn" class="wopr-btn" style="flex: 1;">
+              + ADD FLIGHT LEG
+            </button>
+            <button id="apply-manual-plan-btn" class="wopr-btn primary" style="flex: 1;">
+              ▶ APPLY & PLAY
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Autocomplete Popup Menu for Airport Search -->
+    <div id="ac-dropdown-list" class="autocomplete-list" role="listbox"></div>
+
+    <!-- Unified Collapsible Bottom Dock (Zero Viewport Occlusion) -->
+    <nav id="bottom-dock" aria-label="Timeline & Playback Controls">
+      <button id="dock-collapse-btn" class="dock-collapse-btn" aria-label="Toggle Bottom Dock">
+        ▾ HIDE CONTROLS
+      </button>
+
+      <!-- Master Flight Scrubber (0% - 100%) -->
+      <div class="flight-progress-bar-container">
+        <div class="flight-progress-header">
+          <span style="font-weight: bold; letter-spacing: 0.8px;">MASTER TRIP PROGRESS</span>
+          <span id="flight-status-badge" class="flight-status-badge">EN ROUTE</span>
+        </div>
+        <input
+          type="range"
+          id="flight-scrubber"
+          class="wopr-range"
+          min="0"
+          max="100"
+          step="0.1"
+          value="0"
+          aria-label="Trip Progress Scrubber"
+        />
+      </div>
+
+      <!-- Triple Linear Time Sliders (Hour of Day / Day of Year / Year) -->
+      <div class="time-sliders-grid">
+        <!-- Slider 1: Hour of Day -->
+        <div class="slider-unit">
+          <div class="slider-label-row">
+            <span>HOUR OF DAY (UTC)</span>
+            <span id="time-hour-val" class="slider-val-readout">12:00</span>
+          </div>
+          <input
+            type="range"
+            id="time-hour-slider"
+            class="wopr-range"
+            min="0"
+            max="24"
+            step="0.05"
+            value="12"
+            aria-label="Hour of Day"
+          />
+        </div>
+
+        <!-- Slider 2: Day of Year -->
+        <div class="slider-unit">
+          <div class="slider-label-row">
+            <span>DAY OF YEAR (SOLAR DECLINATION)</span>
+            <span id="time-doy-val" class="slider-val-readout">OCT 29 (DAY 302)</span>
+          </div>
+          <input
+            type="range"
+            id="time-doy-slider"
+            class="wopr-range"
+            min="1"
+            max="365"
+            step="1"
+            value="302"
+            aria-label="Day of Year"
+          />
+        </div>
+
+        <!-- Slider 3: Year -->
+        <div class="slider-unit">
+          <div class="slider-label-row">
+            <span>YEAR</span>
+            <span id="time-year-val" class="slider-val-readout">2026</span>
+          </div>
+          <input
+            type="range"
+            id="time-year-slider"
+            class="wopr-range"
+            min="1970"
+            max="2030"
+            step="1"
+            value="2026"
+            aria-label="Year"
+          />
+        </div>
+      </div>
+
+      <!-- Playback Transport Row -->
+      <div class="playback-controls-row">
+        <div class="transport-btns">
+          <button id="play-pause-btn" class="wopr-btn primary">❚❚ PAUSE</button>
+          <button id="dir-toggle-btn" class="wopr-btn">FWD ▶</button>
+        </div>
+
+        <!-- Speed Multipliers -->
+        <div class="speed-preset-group">
+          <span style="font-size: 10px; color: var(--crt-green-dim); margin-right: 4px;">SPEED:</span>
+          <button class="speed-btn" data-speed="1">1X</button>
+          <button class="speed-btn" data-speed="600">600X</button>
+          <button class="speed-btn active" data-speed="3600">3600X</button>
+          <button class="speed-btn" data-speed="7200">7200X</button>
+          <button class="speed-btn" data-speed="18000">18000X</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Bottom Left Visual Mode Switcher -->
+    <div id="theme-switcher" role="radiogroup" aria-label="Visual Theme Switcher">
+      <div class="switcher-title">HOLOGRAM MODE:</div>
+      <button class="theme-pill-btn active" data-mode="0">WOPR Day/Night (Green/Red)</button>
+      <button class="theme-pill-btn" data-mode="1">Classic Phosphor Green</button>
+      <button class="theme-pill-btn" data-mode="2">Amber Terminal (1983)</button>
+    </div>
+
+    <!-- Bottom Right Navigation Dock -->
+    <div id="nav-dock">
+      <div class="scale-bar-card">
+        <div id="scale-line" class="scale-line" style="width: 60px;"></div>
+        <span id="scale-val">2,400 KM</span>
+      </div>
+
+      <div class="nav-cluster">
+        <button id="zoom-in-btn" class="nav-icon-btn" title="Zoom In" aria-label="Zoom in">+</button>
+        <button id="zoom-out-btn" class="nav-icon-btn" title="Zoom Out" aria-label="Zoom out">−</button>
+        <button id="pitch-toggle-btn" class="nav-icon-btn" title="Toggle 2D Nadir / 3D Oblique" aria-label="Toggle 2D/3D">3D</button>
+        <button id="compass-reset-btn" class="nav-icon-btn compass-btn" title="Reset North" aria-label="Reset North">
+          <span id="compass-needle">▲</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="wopr-toast" role="status" aria-live="polite"></div>
+
+    <!-- Share Trip URL Modal Dialog -->
+    <div id="share-modal" class="wopr-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="share-modal-title">
+      <div class="wopr-modal">
+        <div class="modal-header">
+          <div id="share-modal-title" class="modal-title">SHAREABLE TRIP LINK</div>
+          <button id="share-modal-close" class="wopr-btn danger" style="padding: 2px 7px;">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Your current trip parameters, departure timestamp, speed, and theme have been encoded into a zero-backend URL hash. Copy the link below to share with friends:
+          </p>
+          <div id="share-url-box" class="modal-url-box"></div>
+          <p style="font-size: 11px; color: var(--crt-green-dim);">
+            When opened, the simulation clock will sync to the flight departure time, position the camera over the origin airport, and play the trajectory.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- About Modal Dialog -->
+    <div id="about-modal" class="wopr-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="about-modal-title">
+      <div class="wopr-modal">
+        <div class="modal-header">
+          <div id="about-modal-title" class="modal-title">WOPR CARTOGRAPHY EXPERIMENT</div>
+          <button id="about-modal-close" class="wopr-btn danger" style="padding: 2px 7px;">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            <strong>CartoJam Portfolio:</strong> <code>2026_10_29_flight_paths</code>
+          </p>
+          <p>
+            <strong>What does WOPR stand for?</strong><br />
+            <strong>WOPR</strong> stands for <strong>War Operation Plan Response</strong> (pronounced <em>"whopper"</em>), the military artificial intelligence and tactical supercomputer from the classic 1983 film <em>WarGames</em>, programmed by Dr. Stephen Falken at NORAD Cheyenne Mountain.
+          </p>
+          <p>
+            <strong>Dual-Color Solar Terminator:</strong>
+            The simulation calculates the exact subsolar point from the Day of the Year and UTC Hour (using Spencer's solar declination formula). 
+            Hemispheres facing the sun are rendered in <strong>Phosphor Emerald Green</strong>, while the night hemisphere across the twilight terminator shifts into <strong>NORAD Alert Crimson Red</strong>.
+          </p>
+          <p>
+            <strong>Flight Trajectory Mechanics:</strong>
+            Great Circle paths are calculated using spherical slerp interpolation with parabolic cruise altitude. Layovers feature radar station holds while the Earth continues to rotate beneath.
+          </p>
+          <p>
+            <strong>Architecture:</strong>
+            Built with pure offline-first vanilla JavaScript, WebGL (Three.js), and zero-dependency local vector geometries.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Standalone Offline Scripts (loaded without type="module" for double-click file:// safety) -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="./data.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WarGames 2D Tactical Radar | Alternate View (Gemini 3.8 Flash)</title>
+    <meta
+      name="description"
+      content="1983 NORAD WOPR Big-Board 2D Tactical Radar projection showing Great Circle trajectories, daylight terminator, and live aircraft telemetry."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+    <style>
+      /* Standalone Tactical Radar View Specific Styling */
+      body, html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: #020604;
+        color: #00ff66;
+        font-family: 'Share Tech Mono', monospace;
+      }
+
+      #radar-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+      }
+
+      .radar-hud-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 20;
+      }
+
+      .radar-header {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 48px;
+        background: rgba(2, 10, 4, 0.88);
+        border-bottom: 1px solid #00ff66;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        z-index: 30;
+        pointer-events: auto;
+      }
+
+      .radar-return-btn {
+        background: #002b12;
+        border: 1px solid #00ff66;
+        color: #00ff66;
+        padding: 6px 14px;
+        font-family: 'Share Tech Mono', monospace;
+        font-size: 12px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.15s ease;
+      }
+
+      .radar-return-btn:hover {
+        background: #00ff66;
+        color: #020604;
+        box-shadow: 0 0 12px rgba(0, 255, 102, 0.6);
+      }
+
+      .radar-side-panel {
+        position: absolute;
+        top: 60px;
+        left: 16px;
+        width: 290px;
+        background: rgba(2, 12, 6, 0.92);
+        border: 1px solid #00ff66;
+        padding: 12px;
+        z-index: 25;
+        pointer-events: auto;
+        box-shadow: 0 0 16px rgba(0, 255, 102, 0.15);
+      }
+
+      .radar-telemetry-box {
+        position: absolute;
+        top: 60px;
+        right: 16px;
+        width: 260px;
+        background: rgba(2, 12, 6, 0.92);
+        border: 1px solid #00ff66;
+        padding: 12px;
+        z-index: 25;
+        pointer-events: auto;
+        font-size: 11px;
+        line-height: 1.5;
+        box-shadow: 0 0 16px rgba(0, 255, 102, 0.15);
+      }
+
+      .radar-bottom-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 52px;
+        background: rgba(2, 10, 4, 0.9);
+        border-top: 1px solid #00ff66;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        z-index: 30;
+        pointer-events: auto;
+      }
+
+      .radar-stat-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+        border-bottom: 1px dashed rgba(0, 255, 102, 0.2);
+        padding-bottom: 2px;
+      }
+
+      .radar-stat-lbl {
+        color: #00aa44;
+      }
+
+      .radar-stat-val {
+        color: #00ff66;
+        font-weight: bold;
+      }
+
+      .sweep-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: rgba(0, 255, 102, 0.4);
+        box-shadow: 0 0 10px rgba(0, 255, 102, 0.8);
+        pointer-events: none;
+        z-index: 5;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 1983 CRT Scanlines -->
+    <div class="crt-overlay" aria-hidden="true"></div>
+
+    <!-- Top Navigation Header -->
+    <header class="radar-header">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="./index.html" class="radar-return-btn" title="Return to 3D Vector Hologram Globe">
+          ⟵ RETURN TO 3D GLOBE
+        </a>
+        <span class="wopr-badge" style="background:#003314; border:1px solid #00ff66; padding:2px 6px; font-size:11px;">
+          WOPR // TACTICAL RADAR [ALT VIEW]
+        </span>
+        <span style="font-size: 11px; color: #00aa44;">CARTOJAM // 2026_10_29_FLIGHT_PATHS</span>
+      </div>
+
+      <div style="display: flex; gap: 16px; align-items: center; font-size: 11px;">
+        <div>SIM UTC: <span id="clock-display" style="color:#00ff66; font-weight:bold;">2026-10-29 12:00:00 UTC</span></div>
+        <button id="toggle-sweep-btn" class="wopr-btn" style="padding: 4px 8px; font-size: 11px;">
+          RADAR SWEEP: ON
+        </button>
+      </div>
+    </header>
+
+    <!-- 2D Canvas Map Mount -->
+    <canvas id="radar-canvas"></canvas>
+
+    <!-- Left Flight Selector Panel -->
+    <aside class="radar-side-panel">
+      <div style="font-weight: bold; font-size: 12px; margin-bottom: 8px; border-bottom: 1px solid #00ff66; padding-bottom: 4px; display:flex; justify-content:space-between;">
+        <span>TACTICAL ROUTE:</span>
+        <span style="color:#ffcc00;" id="radar-callsign-badge">BA15</span>
+      </div>
+
+      <div style="font-size: 11px; color: #00aa44; margin-bottom: 8px;">
+        KANGAROO ROUTE: LONDON ➔ SINGAPORE ➔ SYDNEY
+      </div>
+
+      <div id="radar-legs-info" style="font-size: 10px; line-height: 1.4; margin-bottom: 10px;">
+        <div>LEG 1: LHR (London) ➔ SIN (Singapore)</div>
+        <div>LEG 2: SIN (Singapore) ➔ SYD (Sydney)</div>
+      </div>
+
+      <div style="display: flex; gap: 6px;">
+        <button id="btn-route-ba15" class="wopr-btn primary" style="flex: 1; padding: 4px; font-size: 10px;">
+          ★ BA15 (KANGAROO)
+        </button>
+        <button id="btn-route-qf1" class="wopr-btn" style="flex: 1; padding: 4px; font-size: 10px;">
+          QF1 (LHR-SYD)
+        </button>
+      </div>
+    </aside>
+
+    <!-- Right Telemetry Panel -->
+    <aside class="radar-telemetry-box">
+      <div style="font-weight: bold; border-bottom: 1px solid #00ff66; padding-bottom: 4px; margin-bottom: 6px;">
+        AIRCRAFT TELEMETRY
+      </div>
+      <div class="radar-stat-row">
+        <span class="radar-stat-lbl">STATUS</span>
+        <span class="radar-stat-val" id="tel-status">EN ROUTE</span>
+      </div>
+      <div class="radar-stat-row">
+        <span class="radar-stat-lbl">LATITUDE</span>
+        <span class="radar-stat-val" id="tel-lat">28.4° N</span>
+      </div>
+      <div class="radar-stat-row">
+        <span class="radar-stat-lbl">LONGITUDE</span>
+        <span class="radar-stat-val" id="tel-lon">44.8° E</span>
+      </div>
+      <div class="radar-stat-row">
+        <span class="radar-stat-lbl">GROUNDSPEED</span>
+        <span class="radar-stat-val">520 KTS (M 0.84)</span>
+      </div>
+      <div class="radar-stat-row">
+        <span class="radar-stat-lbl">SUBSOLAR POINT</span>
+        <span class="radar-stat-val" id="tel-subsolar">-13.4°S 89.2°W</span>
+      </div>
+      <div class="radar-stat-row">
+        <span class="radar-stat-lbl">PROJECTION</span>
+        <span class="radar-stat-val">CYLINDRICAL EQUIDISTANT</span>
+      </div>
+    </aside>
+
+    <!-- Bottom Transport Dock -->
+    <footer class="radar-bottom-bar">
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button id="radar-play-btn" class="wopr-btn primary" style="padding: 6px 14px;">❚❚ PAUSE</button>
+        <button id="radar-dir-btn" class="wopr-btn" style="padding: 6px 10px;">FWD ▶</button>
+      </div>
+
+      <!-- Scrubber -->
+      <div style="flex: 1; max-width: 480px; display: flex; align-items: center; gap: 10px; margin: 0 16px;">
+        <span style="font-size: 10px; color: #00aa44;">0%</span>
+        <input type="range" id="radar-scrubber" class="wopr-range" min="0" max="100" step="0.1" value="0" style="flex:1;" />
+        <span style="font-size: 10px; color: #00aa44;">100%</span>
+      </div>
+
+      <!-- Speeds -->
+      <div style="display: flex; gap: 4px; align-items: center;">
+        <span style="font-size: 10px; color: #00aa44; margin-right: 4px;">SPEED:</span>
+        <button class="speed-btn" data-spd="1">1X</button>
+        <button class="speed-btn" data-spd="600">600X</button>
+        <button class="speed-btn active" data-spd="3600">3600X</button>
+        <button class="speed-btn" data-spd="7200">7200X</button>
+        <button class="speed-btn" data-spd="18000">18000X</button>
+      </div>
+    </footer>
+
+    <!-- Core Data Script -->
+    <script src="./data.js"></script>
+
+    <script>
+      (function () {
+        'use strict';
+
+        var canvas = document.getElementById('radar-canvas');
+        var ctx = canvas.getContext('2d');
+
+        var DEG2RAD = Math.PI / 180;
+        var RAD2DEG = 180 / Math.PI;
+
+        var simDate = new Date();
+        var isPlaying = true;
+        var timeDirection = 1;
+        var speedMultiplier = 3600;
+        var radarSweepX = 0;
+        var sweepEnabled = true;
+
+        var currentFlight = null;
+        var departureUtcMs = Date.now();
+        var trajectorySamples = [];
+
+        // Resize Canvas
+        function resizeCanvas() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Project lat/lon to Canvas X/Y (Cylindrical Equidistant / Equirectangular)
+        function project(lat, lon) {
+          // Lon: -180 to 180 -> 0 to canvas.width
+          // Lat: 90 to -90 -> 48 to canvas.height - 52
+          var marginT = 52;
+          var marginB = 56;
+          var usableH = canvas.height - marginT - marginB;
+          var usableW = canvas.width;
+
+          var x = ((lon + 180) / 360) * usableW;
+          var y = marginT + ((90 - lat) / 180) * usableH;
+          return { x: x, y: y };
+        }
+
+        function greatCircleDistRad(lat1, lon1, lat2, lon2) {
+          var phi1 = lat1 * DEG2RAD;
+          var phi2 = lat2 * DEG2RAD;
+          var dPhi = (lat2 - lat1) * DEG2RAD;
+          var dLambda = (lon2 - lon1) * DEG2RAD;
+          var a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
+            Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+          return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
+        }
+
+        function interpolateGC(lat1, lon1, lat2, lon2, t) {
+          var d = greatCircleDistRad(lat1, lon1, lat2, lon2);
+          if (d < 1e-6) return { lat: lat1, lon: lon1 };
+          var phi1 = lat1 * DEG2RAD;
+          var phi2 = lat2 * DEG2RAD;
+          var lam1 = lon1 * DEG2RAD;
+          var lam2 = lon2 * DEG2RAD;
+          var sinD = Math.sin(d);
+          var A = Math.sin((1 - t) * d) / sinD;
+          var B = Math.sin(t * d) / sinD;
+          var x = A * Math.cos(phi1) * Math.cos(lam1) + B * Math.cos(phi2) * Math.cos(lam2);
+          var y = A * Math.cos(phi1) * Math.sin(lam1) + B * Math.cos(phi2) * Math.sin(lam2);
+          var z = A * Math.sin(phi1) + B * Math.sin(phi2);
+          return {
+            lat: Math.atan2(z, Math.sqrt(x * x + y * y)) * RAD2DEG,
+            lon: Math.atan2(y, x) * RAD2DEG
+          };
+        }
+
+        function calcSubsolar(date) {
+          var startOfYear = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+          var dayOfYear = Math.floor((date.getTime() - startOfYear.getTime()) / 86400000) + 1;
+          var delta = 23.44 * Math.sin(((360 / 365) * (dayOfYear - 81)) * DEG2RAD);
+          var utcHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+          var sunLon = (12.0 - utcHours) * 15.0;
+          while (sunLon > 180) sunLon -= 360;
+          while (sunLon < -180) sunLon += 360;
+          return { lat: delta, lon: sunLon };
+        }
+
+        function loadRoute(callsign) {
+          var fData = window.CARTO_DATA.lookupFlight(callsign);
+          if (!fData || !fData.instances || fData.instances.length === 0) return;
+          var inst = fData.instances[0];
+          currentFlight = inst;
+          departureUtcMs = Date.now();
+          simDate = new Date(departureUtcMs);
+
+          document.getElementById('radar-callsign-badge').textContent = inst.callsign || callsign;
+
+          // Build trajectory samples
+          trajectorySamples = [];
+          var totalMin = 0;
+          inst.legs.forEach(function (l) { totalMin += l.flightMinutes + (l.layoverMinutes || 0); });
+
+          var cumMin = 0;
+          for (var i = 0; i < inst.legs.length; i++) {
+            var leg = inst.legs[i];
+            var a1 = window.CARTO_DATA.getAirport(leg.fromIata);
+            var a2 = window.CARTO_DATA.getAirport(leg.toIata);
+            if (!a1 || !a2) continue;
+
+            var steps = 180;
+            for (var s = 0; s <= steps; s++) {
+              var t = s / steps;
+              var pt = interpolateGC(a1.lat, a1.lon, a2.lat, a2.lon, t);
+              trajectorySamples.push({
+                lat: pt.lat,
+                lon: pt.lon,
+                timeOffsetMin: cumMin + t * leg.flightMinutes,
+                isLayover: false
+              });
+            }
+            cumMin += leg.flightMinutes;
+
+            if (leg.layoverMinutes > 0) {
+              for (var lo = 0; lo < 20; lo++) {
+                trajectorySamples.push({
+                  lat: a2.lat,
+                  lon: a2.lon,
+                  timeOffsetMin: cumMin + (lo / 20) * leg.layoverMinutes,
+                  isLayover: true
+                });
+              }
+              cumMin += leg.layoverMinutes;
+            }
+          }
+        }
+
+        // Render Frame
+        function render() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // 1. Draw Radar Graticule Grid
+          ctx.strokeStyle = 'rgba(0, 255, 102, 0.08)';
+          ctx.lineWidth = 1;
+          for (var lon = -180; lon <= 180; lon += 30) {
+            var p1 = project(90, lon);
+            var p2 = project(-90, lon);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+          }
+          for (var lat = -60; lat <= 60; lat += 30) {
+            var pl1 = project(lat, -180);
+            var pl2 = project(lat, 180);
+            ctx.beginPath();
+            ctx.moveTo(pl1.x, pl1.y);
+            ctx.lineTo(pl2.x, pl2.y);
+            ctx.stroke();
+          }
+
+          // Equator highlight
+          var eq1 = project(0, -180);
+          var eq2 = project(0, 180);
+          ctx.strokeStyle = 'rgba(0, 255, 102, 0.2)';
+          ctx.beginPath();
+          ctx.moveTo(eq1.x, eq1.y);
+          ctx.lineTo(eq2.x, eq2.y);
+          ctx.stroke();
+
+          // 2. Solar Terminator Sine Curve
+          var subsolar = calcSubsolar(simDate);
+          ctx.strokeStyle = 'rgba(255, 204, 0, 0.65)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          var firstTerm = true;
+          for (var termLon = -180; termLon <= 180; termLon += 2) {
+            // Terminator formula: tan(lat) = -cos(lon - sunLon) / tan(sunLat)
+            var deltaLam = (termLon - subsolar.lon) * DEG2RAD;
+            var tanSunLat = Math.tan(subsolar.lat * DEG2RAD);
+            var termLat = Math.atan(-Math.cos(deltaLam) / (Math.abs(tanSunLat) < 0.001 ? 0.001 : tanSunLat)) * RAD2DEG;
+            var tpt = project(termLat, termLon);
+            if (firstTerm) {
+              ctx.moveTo(tpt.x, tpt.y);
+              firstTerm = false;
+            } else {
+              ctx.lineTo(tpt.x, tpt.y);
+            }
+          }
+          ctx.stroke();
+
+          // Subsolar Crosshair
+          var sunPt = project(subsolar.lat, subsolar.lon);
+          ctx.strokeStyle = '#ffe600';
+          ctx.fillStyle = '#ffe600';
+          ctx.beginPath();
+          ctx.arc(sunPt.x, sunPt.y, 6, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(sunPt.x - 9, sunPt.y); ctx.lineTo(sunPt.x + 9, sunPt.y);
+          ctx.moveTo(sunPt.x, sunPt.y - 9); ctx.lineTo(sunPt.x, sunPt.y + 9);
+          ctx.stroke();
+
+          // 3. Draw World Coastlines & Detailed Contours
+          var coastlines = (window.CARTO_DATA && window.CARTO_DATA.coastlines) || [];
+          ctx.strokeStyle = 'rgba(0, 255, 102, 0.45)';
+          ctx.lineWidth = 1;
+
+          for (var c = 0; c < coastlines.length; c++) {
+            var poly = coastlines[c];
+            ctx.beginPath();
+            for (var p = 0; p < poly.length; p++) {
+              var cpt = project(poly[p][1], poly[p][0]);
+              if (p === 0) ctx.moveTo(cpt.x, cpt.y);
+              else ctx.lineTo(cpt.x, cpt.y);
+            }
+            ctx.stroke();
+          }
+
+          // 4. Draw Major Airport Nodes
+          var airports = (window.CARTO_DATA && window.CARTO_DATA.airports) || [];
+          ctx.fillStyle = 'rgba(0, 255, 102, 0.7)';
+          ctx.font = '9px "Share Tech Mono", monospace';
+          for (var a = 0; a < airports.length; a++) {
+            var ap = airports[a];
+            var apt = project(ap.lat, ap.lon);
+            ctx.fillRect(apt.x - 1.5, apt.y - 1.5, 3, 3);
+            if (ap.iata === 'LHR' || ap.iata === 'SIN' || ap.iata === 'SYD' || ap.iata === 'GVA' || ap.iata === 'AUH') {
+              ctx.fillText(ap.iata, apt.x + 4, apt.y + 3);
+            }
+          }
+
+          // 5. Draw Flight Trajectory Arc
+          if (trajectorySamples.length > 1) {
+            ctx.strokeStyle = 'rgba(0, 255, 102, 0.25)';
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (var tr = 0; tr < trajectorySamples.length; tr++) {
+              var trPt = project(trajectorySamples[tr].lat, trajectorySamples[tr].lon);
+              // Handle antimeridian jump
+              if (tr > 0 && Math.abs(trajectorySamples[tr].lon - trajectorySamples[tr - 1].lon) > 180) {
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(trPt.x, trPt.y);
+              } else if (tr === 0) {
+                ctx.moveTo(trPt.x, trPt.y);
+              } else {
+                ctx.lineTo(trPt.x, trPt.y);
+              }
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Current Aircraft Position
+            var totalMin = trajectorySamples[trajectorySamples.length - 1].timeOffsetMin;
+            var elapsedMin = (simDate.getTime() - departureUtcMs) / 60000;
+            if (elapsedMin >= totalMin) {
+              departureUtcMs = simDate.getTime();
+              elapsedMin = 0;
+            }
+            var frac = Math.max(0, Math.min(1, elapsedMin / totalMin));
+
+            var curIdx = Math.floor(frac * (trajectorySamples.length - 1));
+            var currentPos = trajectorySamples[curIdx];
+            var planePt = project(currentPos.lat, currentPos.lon);
+
+            // Active solid trace line
+            ctx.strokeStyle = '#00ff66';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (var ac = 0; ac <= curIdx; ac++) {
+              var aPt = project(trajectorySamples[ac].lat, trajectorySamples[ac].lon);
+              if (ac > 0 && Math.abs(trajectorySamples[ac].lon - trajectorySamples[ac - 1].lon) > 180) {
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(aPt.x, aPt.y);
+              } else if (ac === 0) {
+                ctx.moveTo(aPt.x, aPt.y);
+              } else {
+                ctx.lineTo(aPt.x, aPt.y);
+              }
+            }
+            ctx.stroke();
+
+            // Blinking Plane Radar Target
+            var blink = Math.sin(Date.now() * 0.008) > 0;
+            ctx.fillStyle = blink ? '#ffffff' : '#00ff66';
+            ctx.beginPath();
+            ctx.arc(planePt.x, planePt.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Heading Target Brackets
+            ctx.strokeStyle = '#00ff66';
+            ctx.strokeRect(planePt.x - 7, planePt.y - 7, 14, 14);
+
+            // Callout text
+            var labelText = (currentFlight && (currentFlight.callsign || currentFlight.title)) ? (currentFlight.callsign || currentFlight.title) : 'BA15';
+            ctx.fillStyle = '#00ff66';
+            ctx.fillText(labelText + ' [' + Math.round(frac * 100) + '%]', planePt.x + 10, planePt.y - 8);
+
+            // Telemetry DOM updates
+            document.getElementById('tel-lat').textContent = Math.abs(currentPos.lat).toFixed(1) + '° ' + (currentPos.lat >= 0 ? 'N' : 'S');
+            document.getElementById('tel-lon').textContent = Math.abs(currentPos.lon).toFixed(1) + '° ' + (currentPos.lon >= 0 ? 'E' : 'W');
+            document.getElementById('tel-status').textContent = currentPos.isLayover ? 'LAYOVER' : 'EN ROUTE (' + Math.round(frac * 100) + '%)';
+            document.getElementById('radar-scrubber').value = (frac * 100).toFixed(1);
+          }
+
+          // 6. Tactical Radar Sweep Line
+          if (sweepEnabled) {
+            radarSweepX = (radarSweepX + 2.5) % canvas.width;
+            var grad = ctx.createLinearGradient(radarSweepX - 60, 0, radarSweepX, 0);
+            grad.addColorStop(0, 'rgba(0, 255, 102, 0)');
+            grad.addColorStop(1, 'rgba(0, 255, 102, 0.22)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(radarSweepX - 60, 48, 60, canvas.height - 100);
+
+            ctx.strokeStyle = 'rgba(0, 255, 102, 0.6)';
+            ctx.beginPath();
+            ctx.moveTo(radarSweepX, 48);
+            ctx.lineTo(radarSweepX, canvas.height - 52);
+            ctx.stroke();
+          }
+
+          // Subsolar telemetry
+          var subLatStr = Math.abs(subsolar.lat).toFixed(1) + '°' + (subsolar.lat >= 0 ? 'N' : 'S');
+          var subLonStr = Math.abs(subsolar.lon).toFixed(1) + '°' + (subsolar.lon >= 0 ? 'E' : 'W');
+          document.getElementById('tel-subsolar').textContent = subLatStr + ' ' + subLonStr;
+
+          // Time advance
+          if (isPlaying) {
+            simDate = new Date(simDate.getTime() + 16 * speedMultiplier * timeDirection);
+          }
+          document.getElementById('clock-display').textContent = simDate.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+
+          requestAnimationFrame(render);
+        }
+
+        // Setup Controls
+        document.getElementById('radar-play-btn').addEventListener('click', function () {
+          isPlaying = !isPlaying;
+          this.textContent = isPlaying ? '❚❚ PAUSE' : '▶ PLAY';
+        });
+
+        document.getElementById('radar-dir-btn').addEventListener('click', function () {
+          timeDirection = timeDirection === 1 ? -1 : 1;
+          this.textContent = timeDirection === 1 ? 'FWD ▶' : '◀ REV';
+          this.classList.toggle('amber', timeDirection === -1);
+        });
+
+        var speedBtns = document.querySelectorAll('.speed-btn');
+        speedBtns.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            speedBtns.forEach(function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            speedMultiplier = parseFloat(btn.getAttribute('data-spd'));
+          });
+        });
+
+        document.getElementById('toggle-sweep-btn').addEventListener('click', function () {
+          sweepEnabled = !sweepEnabled;
+          this.textContent = sweepEnabled ? 'RADAR SWEEP: ON' : 'RADAR SWEEP: OFF';
+        });
+
+        document.getElementById('btn-route-ba15').addEventListener('click', function () {
+          loadRoute('BA15');
+        });
+        document.getElementById('btn-route-qf1').addEventListener('click', function () {
+          loadRoute('QF1');
+        });
+
+        document.getElementById('radar-scrubber').addEventListener('input', function () {
+          if (!trajectorySamples.length) return;
+          var totalMin = trajectorySamples[trajectorySamples.length - 1].timeOffsetMin;
+          var frac = parseFloat(this.value) / 100;
+          simDate = new Date(departureUtcMs + frac * totalMin * 60000);
+        });
+
+        // Initialize with default Kangaroo Route BA15
+        loadRoute('BA15');
+        requestAnimationFrame(render);
+      })();
+    </script>
+  </body>
+</html>

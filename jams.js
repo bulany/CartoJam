@@ -7,7 +7,7 @@ window.CARTOJAM_DATA = {
       subtitle: "96 Metropolitan Departments & 13 Regions extruded in 3D by INSEE population",
       path: "./2026_10_22_french_departments/index.html",
       thumb: "./2026_10_22_french_departments/thumb.jpg",
-      gif: "./2026_10_22_french_departments/thumb.jpg", // Uses thumb.jpg until preview.gif is added so hover never breaks!
+      gif: "./2026_10_22_french_departments/preview.gif", // Uses thumb.jpg until preview.gif is added so hover never breaks!
       tags: ["Three.js", "MapLibre GL", "GeoJSON", "INSEE", "Offline-First"],
       stats: {
         human_min: 117.1,
@@ -30,6 +30,39 @@ window.CARTOJAM_DATA = {
           { lane: "Gemini Argon (Architect)", actor: "Gemini Argon", start: "16:59", end: "17:01", dur: "1m 24.7s (31,355 tok)", color: "#3b82f6", detail: "Turn 4: Portfolio index.html & waterfall chart" },
           { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "17:03", end: "17:34", dur: "31m 26s", color: "#10b981", detail: "Deployed GitHub Pages, created thumb.jpg, emailed live link" },
           { lane: "Gemini Argon (Architect)", actor: "Gemini Argon", start: "17:34", end: "17:36", dur: "79.1 (40688 tok)", color: "#3b82f6", detail: "Turn 5: Finalized ai_log.json, fixed hover thumb & Next Thursday context" }
+        ]
+      }
+    },
+    {
+      id: "2026_10_29_retro_flight_paths",
+      date: "2026-10-29",
+      title: "Retro Flight Paths",
+      subtitle: "A retro-inspired 3D holographic flight path simulator with astronomical solar terminator & great-circle tracking",
+      path: "./2026_10_29_retro_flight_paths/index.html",
+      thumb: "./2026_10_29_retro_flight_paths/thumb.jpg",
+      gif: "./2026_10_29_retro_flight_paths/preview.gif", // Uses thumb.jpg until preview.gif is added so hover never breaks!
+      tags: ["Three.js", "CRT Shader", "Aviation", "Solar Terminator", "Offline-First", "No-Build"],
+      stats: {
+        human_min: 27.1,
+        ai_min: 32.2,
+        tokens: "26.3k+ (Flash Max & Argon) + 4x Passes (App Builder 3.8 Flash)"
+      },
+      ai_log: {
+        dayStart: "2026-10-30T01:30:00+02:00",
+        dayEnd: "2026-10-30T03:05:00+02:00",
+        events: [
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "01:32", end: "01:43", dur: "11m 10s", color: "#10b981", detail: "Voice spec: WarGames WOPR 3D globe, EY426 route & CRT terminator" },
+          { lane: "Gemini Flash Max", actor: "Gemini Flash Max", start: "01:43", end: "01:45", dur: "1m 52.1s (20,559 tok)", color: "#8b5cf6", detail: "Turn 1: Standalone single-file prototype (flash38.html)" },
+          { lane: "Gemini Argon (Architect)", actor: "Gemini Argon", start: "01:48", end: "01:50", dur: "53.6s (5,794 tok)", color: "#3b82f6", detail: "Turn 2: Modular No-Build spec prompt for Google App Builder" },
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "02:00", end: "02:02", dur: "1m 11s", color: "#10b981", detail: "Pasted Argon spec to App Builder, logged initial telemetry" },
+          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "02:00", end: "02:12", dur: "12m 21s", color: "#f59e0b", detail: "Pass 1: Modular scaffolding (index, style, data, app)" },
+          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "02:13", end: "02:15", dur: "1m 50s", color: "#f59e0b", detail: "Pass 2: Self-correction run for detected build errors" },
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "02:18", end: "02:25", dur: "7m 28s", color: "#10b981", detail: "Voice feedback: Google Earth center-pivot controls, BA15 Kangaroo preset, speed presets, loop flight" },
+          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "02:26", end: "02:31", dur: "5m 25s", color: "#f59e0b", detail: "Pass 3: Camera pivot lock, BA15 default, 1x/600x/3600x speeds & loop animation" },
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "02:40", end: "02:45", dur: "5m 07s", color: "#10b981", detail: "Voice feedback: Clean grid, high-res contours, translucent ocean hollow globe, flash38.html toggle button" },
+          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "02:46", end: "02:56", dur: "10m 16s", color: "#f59e0b", detail: "Pass 4: Ocean transparency, vector contours, alternate view modal switch" },
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "02:58", end: "03:00", dur: "2m 21s", color: "#10b981", detail: "Final voice polish: Remove inland vector artifacts, strip sun reticle/yellow ring, smooth plane motion" },
+          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "03:00", end: "03:00", dur: "0s (Quota Reached)", color: "#ef4444", detail: "Pass 5: Cancelled due to quota limit reached" }
         ]
       }
     }

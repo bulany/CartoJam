@@ -1,0 +1,6 @@
+{
+  "name": "3D Flight Tracker",
+  "description": "1983 CRT vector hologram 3D globe with real-time solar terminator, multi-leg flight tracking, Great Circle trajectories, and offline-first cartography.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
