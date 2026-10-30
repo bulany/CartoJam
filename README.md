@@ -1,20 +1,26 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# 🌍 CartoJam
 
-# Run and deploy your AI Studio app
+> **Weekly rapid-prototyping jam for 3D cartography, spatial data visualizations, and map experiments.**
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/fed2cd3b-c8e0-4181-9f1e-983920b87125
+### 🚀 **[👉 SEE THE LIVE CARTOJAM EXPERIMENTS HERE](https://bulany.github.io/CartoJam/)**
+**Live URL:** `https://bulany.github.io/CartoJam/`
 
-## Run Locally
+---
 
-**Prerequisites:**  Node.js
+## ⚡ What is this?
+Every Thursday, a self-contained spatial experiment is designed and built in a zero-dependency, no-build vanilla stack (Three.js, MapLibre GL, D3, Canvas). 
 
+All experiments run:
+- **Online:** Hosted seamlessly via GitHub Pages at the link above.
+- **Offline:** 100% runnable offline by double-clicking `index.html` (`file://` safe, no build step or node server required).
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🗂️ Jams Index
+Browse the live portal at **[bulany.github.io/CartoJam](https://bulany.github.io/CartoJam/)** or explore the date-prefixed project folders in this repo:
+- `2026_10_29_wargames_flight_tracker/` — 1983 *WarGames* WOPR CRT flight tracker & daylight terminator globe.
+- `2026_10_22_french_departments/` — 3D French departments explorer & topo/vector layers.
+- *...and earlier weekly prototypes.*
+
+---
+*Created by [bulany](https://github.com/bulany) — Built with voice-driven specs, Three.js, and AI-assisted prototyping workflows.*
