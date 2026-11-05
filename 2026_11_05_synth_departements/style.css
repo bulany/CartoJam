@@ -331,14 +331,22 @@ html, body {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   overflow: hidden;
   background: radial-gradient(circle at 50% 50%, rgba(20, 26, 45, 0.4) 0%, transparent 80%);
 }
 
-#france-svg {
+.map-wrapper {
   width: 100%;
-  height: 100%;
+  margin-left: 20%;
+  position: relative;
+  display: inline-block;
+}
+
+#france-svg {
+  display: block;
+  width: 100%;
+  height: auto;
   max-width: 900px;
   max-height: calc(100vh - 210px);
   filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.9));
@@ -376,8 +384,8 @@ html, body {
 /* Dedicated Zoom Inset for Paris & Île-de-France (Top-Left) */
 .idf-inset-panel {
   position: absolute;
-  top: 14px;
-  left: 14px;
+  top: 5%;
+  left: -20%;
   width: 220px;
   height: 200px;
   background: rgba(10, 12, 18, 0.92);
@@ -1065,6 +1073,9 @@ html, body {
   .idf-inset-panel {
     display: none !important;
   }
+  .map-wrapper {
+    margin-left: 0!important;
+  }
   .main-stage {
     grid-template-columns: 1fr 300px;
   }
@@ -1080,6 +1091,9 @@ html, body {
   }
   .idf-inset-panel {
     display: none !important;
+  }
+  .map-wrapper {
+    margin-left: 0!important;
   }
   .tracker-keyboard-container {
     display: none !important;

@@ -140,16 +140,18 @@
       <!-- Center Map Stage -->
       <section class="map-stage" aria-label="Interactive Cartography">
         <!-- Dedicated Zoom Inset for Paris & Île-de-France (Top-Left) -->
-        <div class="idf-inset-panel" aria-label="Zoom Paris & Île-de-France">
-          <div class="inset-header">
-            <span>Île-de-France [Zoom]</span>
-            <span id="idf-active-badge" class="inset-badge" style="display:none;"></span>
+        <div class="map-wrapper">
+          <div class="idf-inset-panel" aria-label="Zoom Paris & Île-de-France">
+            <div class="inset-header">
+              <span>Île-de-France [Zoom]</span>
+              <span id="idf-active-badge" class="inset-badge" style="display:none;"></span>
+            </div>
+            <svg id="idf-svg" role="img" aria-label="Detailed Zoom Map of Paris and Île-de-France"></svg>
           </div>
-          <svg id="idf-svg" role="img" aria-label="Detailed Zoom Map of Paris and Île-de-France"></svg>
-        </div>
 
-        <!-- Main France Map SVG -->
-        <svg id="france-svg" role="img" aria-label="Vector Map of Metropolitan France and Corsica"></svg>
+          <!-- Main France Map SVG -->
+          <svg id="france-svg" role="img" aria-label="Vector Map of Metropolitan France and Corsica"></svg>
+        </div>
       </section>
 
       <!-- Right HUD / Nixie Readout & Visualizer -->
