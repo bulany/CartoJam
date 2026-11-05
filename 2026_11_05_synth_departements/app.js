@@ -103,9 +103,9 @@
     delay2.connect(masterCompressor);
 
     // Master pipeline
-    masterCompressor.connect(masterGain);
-    masterGain.connect(analyserNode);
-    analyserNode.connect(audioCtx.destination);
+    masterCompressor.connect(analyserNode);
+    analyserNode.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
   }
 
   function resumeAudio() {
