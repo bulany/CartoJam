@@ -46,7 +46,7 @@
     reverbWet: 0.35,    // Reverb send level
     releaseTime: 0.28,  // seconds
     waveform: 'sawsquare', // 'sawsquare', 'saw', 'square'
-    volume: 0.75
+    volume: 0.38
   };
 
   function initAudio() {
@@ -359,8 +359,17 @@
   const btnOctaveDown = document.getElementById('btn-octave-down');
   const btnOctaveUp = document.getElementById('btn-octave-up');
   const trackerKeysContainer = document.getElementById('tracker-keys-container');
+  const idfActiveBadge = document.getElementById('idf-active-badge');
+
+  // Drawer Controls
+  const synthPanelLeft = document.getElementById('synth-panel-left');
+  const btnCollapseDrawer = document.getElementById('btn-collapse-drawer');
+  const btnOpenDrawer = document.getElementById('btn-open-drawer');
+  const mainStage = document.querySelector('.main-stage');
 
   // Sliders
+  const sliderVolume = document.getElementById('slider-volume');
+  const valVolume = document.getElementById('val-volume');
   const sliderCutoff = document.getElementById('slider-cutoff');
   const valCutoff = document.getElementById('val-cutoff');
   const sliderRes = document.getElementById('slider-res');
@@ -378,6 +387,28 @@
   // ==========================================================================
   const mapPathsByCode = {};
   const idfPathsByCode = {};
+  const idfLabelsByCode = {};
+
+  /**
+   * Illuminates a department on both the main map and zoom inset synchronously.
+   */
+  function flashDepartment(code, durationMs = 380) {
+    const mp = mapPathsByCode[code];
+    if (mp) {
+      mp.classList.add('active');
+      setTimeout(() => mp.classList.remove('active'), durationMs);
+    }
+    const ip = idfPathsByCode[code];
+    if (ip) {
+      ip.classList.add('active');
+      setTimeout(() => ip.classList.remove('active'), durationMs);
+    }
+    const lbl = idfLabelsByCode[code];
+    if (lbl) {
+      lbl.classList.add('active');
+      setTimeout(() => lbl.classList.remove('active'), durationMs);
+    }
+  }
 
   function renderMap() {
     // Render main France map
@@ -427,6 +458,7 @@
           style="color: ${note.color}"
         />
         <text
+          id="label-idf-${dept.code}"
           x="${dept.centroid[0]}"
           y="${dept.centroid[1]}"
           class="idf-label"
@@ -436,9 +468,10 @@
     idfSvgContent += '</g>';
     idfSvg.innerHTML = idfSvgContent;
 
-    // Cache idf paths
+    // Cache idf paths and text labels
     idfCodes.forEach(code => {
       idfPathsByCode[code] = document.getElementById(`dept-idf-${code}`);
+      idfLabelsByCode[code] = document.getElementById(`label-idf-${code}`);
     });
 
     // Attach map events
@@ -477,6 +510,22 @@
           <span style="color:${info.color}">Note: ${info.fullName} (${info.freq.toFixed(1)} Hz)</span>
         `;
       }
+    });
+
+    svgEl.addEventListener('mouseover', (e) => {
+      const target = e.target.closest('path');
+      if (!target) return;
+      const code = target.getAttribute('data-code');
+      if (mapPathsByCode[code]) mapPathsByCode[code].style.fillOpacity = '0.75';
+      if (idfPathsByCode[code]) idfPathsByCode[code].style.fillOpacity = '0.95';
+    });
+
+    svgEl.addEventListener('mouseout', (e) => {
+      const target = e.target.closest('path');
+      if (!target) return;
+      const code = target.getAttribute('data-code');
+      if (mapPathsByCode[code]) mapPathsByCode[code].style.fillOpacity = '';
+      if (idfPathsByCode[code]) idfPathsByCode[code].style.fillOpacity = '';
     });
 
     svgEl.addEventListener('mouseleave', () => {
@@ -544,18 +593,8 @@
     const dept = departments[deptIndex];
     const noteInfo = getActiveNoteInfo(deptIndex);
 
-    // Visual Glow on both Main Map and Inset
-    const mainPath = mapPathsByCode[dept.code];
-    if (mainPath) {
-      mainPath.classList.add('active');
-      setTimeout(() => mainPath.classList.remove('active'), 350);
-    }
-
-    const idfPath = idfPathsByCode[dept.code];
-    if (idfPath) {
-      idfPath.classList.add('active');
-      setTimeout(() => idfPath.classList.remove('active'), 350);
-    }
+    // Visual glow on both Main Map and Zoom Inset synchronously
+    flashDepartment(dept.code, 400);
 
     // Play Synth Voice
     if (playAudio) {
@@ -566,6 +605,17 @@
         durationSec = noteInfo.durationSixteenths * sixteenthSec;
       }
       playSynthVoice(noteInfo.freq, durationSec);
+    }
+
+    // Update IDF active badge in inset header
+    if (idfActiveBadge) {
+      if (idfCodes.includes(dept.code)) {
+        idfActiveBadge.style.display = 'inline-block';
+        idfActiveBadge.textContent = `${dept.code} ${dept.name}`;
+        idfActiveBadge.style.color = noteInfo.color;
+      } else {
+        idfActiveBadge.style.display = 'none';
+      }
     }
 
     // Update HUD display
@@ -619,8 +669,8 @@
     triggerDepartment(currentDeptIndex, false);
   }
 
-  // Close Encounters 5-Tone Motif Action
-  function playCloseEncountersMotif() {
+  // Close Encounters 5-Tone Motif Action (Supports optional onComplete callback)
+  function playCloseEncountersMotif(onComplete) {
     resumeAudio();
     if (isPlaying) pauseSequence();
 
@@ -628,19 +678,20 @@
     let step = 0;
 
     function playNextMotifTone() {
-      if (step >= motif.length) return;
+      if (step >= motif.length) {
+        if (typeof onComplete === 'function') {
+          setTimeout(onComplete, 650);
+        }
+        return;
+      }
       const note = motif[step];
       const d = getNoteDetails(note.midi);
 
-      // Flash matching departments with that pitch
+      // Flash matching departments with that pitch on BOTH main map and zoom inset
       departments.forEach(dept => {
         const deptNote = getActiveNoteInfo(dept.index);
         if (deptNote.pitchName === d.pitchName) {
-          const p = mapPathsByCode[dept.code];
-          if (p) {
-            p.classList.add('active');
-            setTimeout(() => p.classList.remove('active'), 500);
-          }
+          flashDepartment(dept.code, 550);
         }
       });
 
@@ -711,15 +762,11 @@
       setTimeout(() => keyBtn.classList.remove('pressed'), 200);
     }
 
-    // Flash departments sharing this pitch class
+    // Flash departments sharing this pitch class on BOTH main map and zoom inset
     departments.forEach(dept => {
       const dNote = getActiveNoteInfo(dept.index);
       if (dNote.pitchName === noteInfo.pitchName) {
-        const mp = mapPathsByCode[dept.code];
-        if (mp) {
-          mp.classList.add('active');
-          setTimeout(() => mp.classList.remove('active'), 300);
-        }
+        flashDepartment(dept.code, 350);
       }
     });
 
@@ -801,14 +848,17 @@
   // 7. EVENT LISTENERS & INITIALIZATION
   // ==========================================================================
   function initListeners() {
-    // Unlock modal
+    // Unlock modal: Play 1977 mothership motif first, then transition into chromatic mode!
     btnUnlockAudio.addEventListener('click', () => {
       resumeAudio();
       elUnlockModal.classList.add('hidden');
-      // Auto-start intro playback
       setTimeout(() => {
-        playSequence();
-      }, 200);
+        playCloseEncountersMotif(() => {
+          setMode('chromatic');
+          currentDeptIndex = 0;
+          playSequence();
+        });
+      }, 250);
     });
 
     // Check for ?autostart=1 in URL
@@ -817,8 +867,38 @@
       resumeAudio();
       elUnlockModal.classList.add('hidden');
       setTimeout(() => {
-        playSequence();
-      }, 100);
+        playCloseEncountersMotif(() => {
+          setMode('chromatic');
+          currentDeptIndex = 0;
+          playSequence();
+        });
+      }, 150);
+    }
+
+    // Drawer collapse & open controls
+    function toggleSynthDrawer(collapse) {
+      const isCollapsed = collapse !== undefined ? collapse : !synthPanelLeft.classList.contains('collapsed');
+      synthPanelLeft.classList.toggle('collapsed', isCollapsed);
+      if (mainStage) mainStage.classList.toggle('drawer-collapsed', isCollapsed);
+      if (btnOpenDrawer) btnOpenDrawer.style.display = isCollapsed ? 'flex' : 'none';
+    }
+
+    if (btnCollapseDrawer) {
+      btnCollapseDrawer.addEventListener('click', () => toggleSynthDrawer(true));
+    }
+    if (btnOpenDrawer) {
+      btnOpenDrawer.addEventListener('click', () => toggleSynthDrawer(false));
+    }
+
+    // Master Volume Slider
+    if (sliderVolume) {
+      sliderVolume.addEventListener('input', (e) => {
+        synthParams.volume = parseFloat(e.target.value);
+        if (valVolume) valVolume.textContent = `${Math.round(synthParams.volume * 100)}%`;
+        if (masterGain && audioCtx) {
+          masterGain.gain.setValueAtTime(synthParams.volume, audioCtx.currentTime);
+        }
+      });
     }
 
     // Transport buttons

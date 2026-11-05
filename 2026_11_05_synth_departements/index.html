@@ -64,11 +64,20 @@
 
     <!-- Main Workspace Stage -->
     <main class="main-stage">
-      <!-- Left Synth Rack (ARP 2500 Console Controls) -->
-      <aside class="synth-panel-left" aria-label="Synthesizer Matrix Controls">
+      <!-- Left Synth Rack (ARP 2500 Console Controls) - Collapsible Drawer -->
+      <aside id="synth-panel-left" class="synth-panel-left" aria-label="Synthesizer Matrix Controls">
         <div class="panel-header">
-          <span>ARP-2500 Filter / Osc</span>
-          <span style="color:var(--neon-cyan)">VCF & VCA</span>
+          <span>ARP-2500 Console</span>
+          <button id="btn-collapse-drawer" class="btn-drawer-collapse" aria-label="Collapse Synth Matrix">◀ HIDE</button>
+        </div>
+
+        <!-- Master Volume -->
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <label for="slider-volume">MASTER VOLUME</label>
+            <span id="val-volume" class="slider-val">38%</span>
+          </div>
+          <input type="range" id="slider-volume" class="synth-slider" min="0" max="1.0" step="0.02" value="0.38" />
         </div>
 
         <!-- Filter Cutoff -->
@@ -129,13 +138,18 @@
         </div>
       </aside>
 
+      <!-- Collapsed Drawer Docked Open Button -->
+      <button id="btn-open-drawer" class="btn-drawer-open" aria-label="Open Synth Matrix" style="display:none;">
+        <span>▶</span> ARP-2500 MATRIX
+      </button>
+
       <!-- Center Map Stage -->
       <section class="map-stage" aria-label="Interactive Cartography">
         <!-- Dedicated Zoom Inset for Paris & Île-de-France (Top-Left) -->
         <div class="idf-inset-panel" aria-label="Zoom Paris & Île-de-France">
           <div class="inset-header">
             <span>Île-de-France [Zoom]</span>
-            <span class="inset-badge">Paris 75</span>
+            <span id="idf-active-badge" class="inset-badge" style="display:none;"></span>
           </div>
           <svg id="idf-svg" role="img" aria-label="Detailed Zoom Map of Paris and Île-de-France"></svg>
         </div>
