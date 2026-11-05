@@ -1,0 +1,22 @@
+{
+  "jam_date": "2026-11-05",
+  "topic": "Synth-Départements (Close Encounters Edition)",
+  "sessions": [
+    {
+      "role": "human",
+      "window": "21h52 -> 22h06",
+      "duration_sec": 850,
+      "tool": "Obsidian Voice Transcription"
+    },
+    {
+      "role": "architect_llm",
+      "duration_sec": 45,
+      "model": "Gemini Max Mode"
+    },
+    {
+      "role": "builder_llm",
+      "tool": "Google AI Studio App Builder",
+      "model": "Gemini 3.8 Flash"
+    }
+  ]
+}

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Synth-Départements - Close Encounters 1977 Edition</title>
+  <meta name="description" content="Standalone offline-first interactive synth cartography experience mapping 96 French departments to an analog ARP 2500 synth engine and melodic sequencer." />
+  <meta property="og:title" content="Synth-Départements - Close Encounters 1977 Edition" />
+  <meta property="og:description" content="Standalone offline-first interactive synth cartography experience mapping 96 French departments to an analog ARP 2500 synth engine and melodic sequencer." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- CRT Scanlines & Phosphor Bloom Simulation -->
+  <div class="crt-overlay" aria-hidden="true"></div>
+
+  <!-- Audio Unlock Modal -->
+  <div id="unlock-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="unlock-box">
+      <div class="modal-header-tag">1977 AUDIO CARTO-INTERFACE • CARTOGRAM JAM</div>
+      <h1 id="modal-title" class="modal-title">SYNTH-DÉPARTEMENTS</h1>
+      <p class="modal-desc">
+        Welcome to the <strong>Close Encounters of the Third Kind</strong> analog cartographic synthesizer.
+        Explore all 96 metropolitan French departments mapped to an analog ARP 2500 synth engine, an 88-key chromatic spectrum, and <em>La Marseillaise</em> melodic modulation.
+      </p>
+      <button id="btn-unlock-audio" class="btn-unlock-audio" aria-label="Initialize ARP-2500 Carto-Synth">
+        PRESS TO INITIALIZE ARP-2500 CARTO-SYNTH
+      </button>
+      <div class="features-list">
+        <span>⚡ 100% Offline</span>
+        <span>🎹 Dual Osc 24dB Filter</span>
+        <span>🇫🇷 96 Départements</span>
+        <span>👽 1977 Mothership</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Tooltip -->
+  <div id="map-tooltip" class="map-tooltip" role="tooltip" aria-hidden="true"></div>
+
+  <!-- Main Application Container -->
+  <div id="app-container">
+    <!-- Top Header / Light Bar -->
+    <header class="synth-header">
+      <div class="brand-section">
+        <div class="mothership-lightbar" aria-hidden="true">
+          <div class="light-bulb" style="color:#ff9f1c"></div>
+          <div class="light-bulb" style="color:#ef476f"></div>
+          <div class="light-bulb" style="color:#7209b7"></div>
+          <div class="light-bulb" style="color:#4cc9f0"></div>
+          <div class="light-bulb" style="color:#06d6a0"></div>
+          <div class="light-bulb" style="color:#ffd166"></div>
+        </div>
+        <span class="app-title">Synth-Départements</span>
+        <span class="app-subtitle">Close Encounters 1977 Edition</span>
+      </div>
+
+      <div class="status-badge">
+        <span class="power-led" aria-hidden="true"></span>
+        <span>ARP 2500 Matrix Console</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace Stage -->
+    <main class="main-stage">
+      <!-- Left Synth Rack (ARP 2500 Console Controls) -->
+      <aside class="synth-panel-left" aria-label="Synthesizer Matrix Controls">
+        <div class="panel-header">
+          <span>ARP-2500 Filter / Osc</span>
+          <span style="color:var(--neon-cyan)">VCF & VCA</span>
+        </div>
+
+        <!-- Filter Cutoff -->
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <label for="slider-cutoff">VCF CUTOFF</label>
+            <span id="val-cutoff" class="slider-val">3500 Hz</span>
+          </div>
+          <input type="range" id="slider-cutoff" class="synth-slider" min="200" max="10000" step="50" value="3500" />
+        </div>
+
+        <!-- Filter Resonance -->
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <label for="slider-res">RESONANCE (Q)</label>
+            <span id="val-res" class="slider-val">6.0</span>
+          </div>
+          <input type="range" id="slider-res" class="synth-slider" min="0.5" max="16" step="0.5" value="6.0" />
+        </div>
+
+        <!-- Osc 2 Detune -->
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <label for="slider-detune">OSC 2 DETUNE</label>
+            <span id="val-detune" class="slider-val">9 cents</span>
+          </div>
+          <input type="range" id="slider-detune" class="synth-slider" min="0" max="25" step="1" value="9" />
+        </div>
+
+        <!-- Reverb / Space -->
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <label for="slider-reverb">SCHROEDER SPACE</label>
+            <span id="val-reverb" class="slider-val">35%</span>
+          </div>
+          <input type="range" id="slider-reverb" class="synth-slider" min="0" max="0.8" step="0.05" value="0.35" />
+        </div>
+
+        <!-- VCA Release -->
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <label for="slider-release">VCA RELEASE</label>
+            <span id="val-release" class="slider-val">0.28s</span>
+          </div>
+          <input type="range" id="slider-release" class="synth-slider" min="0.08" max="1.0" step="0.02" value="0.28" />
+        </div>
+
+        <!-- Waveform selection -->
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <span>OSC CORE</span>
+          </div>
+          <div class="waveform-selector">
+            <button class="wave-btn active" data-wave="sawsquare">SAW + SQR</button>
+            <button class="wave-btn" data-wave="saw">DUAL SAW</button>
+            <button class="wave-btn" data-wave="square">DUAL SQR</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center Map Stage -->
+      <section class="map-stage" aria-label="Interactive Cartography">
+        <!-- Dedicated Zoom Inset for Paris & Île-de-France (Top-Left) -->
+        <div class="idf-inset-panel" aria-label="Zoom Paris & Île-de-France">
+          <div class="inset-header">
+            <span>Île-de-France [Zoom]</span>
+            <span class="inset-badge">Paris 75</span>
+          </div>
+          <svg id="idf-svg" role="img" aria-label="Detailed Zoom Map of Paris and Île-de-France"></svg>
+        </div>
+
+        <!-- Main France Map SVG -->
+        <svg id="france-svg" role="img" aria-label="Vector Map of Metropolitan France and Corsica"></svg>
+      </section>
+
+      <!-- Right HUD / Nixie Readout & Visualizer -->
+      <aside class="synth-hud-right" aria-label="Telemetry and Musical Telemetry">
+        <!-- Massive Retro Nixie Readout -->
+        <div class="nixie-display" aria-live="polite">
+          <div class="nixie-top-row">
+            <div id="nixie-code" class="nixie-code">[ 01 ]</div>
+            <div id="nixie-counter" class="nixie-counter">01 / 96</div>
+          </div>
+          <div id="nixie-name" class="nixie-name">AIN</div>
+          <div class="nixie-sub">
+            <div id="nixie-chef-lieu" class="nixie-chef-lieu">Chef-lieu: Bourg-en-Bresse</div>
+            <div id="nixie-musical-info" class="nixie-musical-info">Key #1 (A0) | MIDI 21 | Freq: 27.50 Hz</div>
+          </div>
+        </div>
+
+        <!-- Vector CRT Oscilloscope -->
+        <div class="scope-card">
+          <div class="panel-header">
+            <span>CRT VECTOR OSCILLOSCOPE</span>
+            <span style="color:var(--neon-lime)">AUDIO TAP</span>
+          </div>
+          <div class="scope-container">
+            <canvas id="scope-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Spielberg Close Encounters Motif Trigger -->
+        <button id="btn-mothership" class="mothership-btn" aria-label="Trigger Close Encounters 1977 5-Tone Motif">
+          <span>👽</span> 1977 MOTHERSHIP MOTIF
+        </button>
+
+        <!-- 12-Tone Chromatic Scale Palette Legend -->
+        <div class="panel-header" style="margin-top:4px;">
+          <span>12-TONE CHROMATIC PALETTE</span>
+        </div>
+        <div class="palette-legend" aria-hidden="true">
+          <div class="legend-chip" data-note="C"><span class="legend-color-dot" style="background:#FF9F1C"></span>C</div>
+          <div class="legend-chip" data-note="C#"><span class="legend-color-dot" style="background:#FF6B35"></span>C#</div>
+          <div class="legend-chip" data-note="D"><span class="legend-color-dot" style="background:#EF476F"></span>D</div>
+          <div class="legend-chip" data-note="D#"><span class="legend-color-dot" style="background:#D62286"></span>D#</div>
+          <div class="legend-chip" data-note="E"><span class="legend-color-dot" style="background:#7209B7"></span>E</div>
+          <div class="legend-chip" data-note="F"><span class="legend-color-dot" style="background:#3A0CA3"></span>F</div>
+          <div class="legend-chip" data-note="F#"><span class="legend-color-dot" style="background:#4CC9F0"></span>F#</div>
+          <div class="legend-chip" data-note="G"><span class="legend-color-dot" style="background:#06D6A0"></span>G</div>
+          <div class="legend-chip" data-note="G#"><span class="legend-color-dot" style="background:#2EC4B6"></span>G#</div>
+          <div class="legend-chip" data-note="A"><span class="legend-color-dot" style="background:#B5E48C"></span>A</div>
+          <div class="legend-chip" data-note="A#"><span class="legend-color-dot" style="background:#FFD166"></span>A#</div>
+          <div class="legend-chip" data-note="B"><span class="legend-color-dot" style="background:#FFE49E"></span>B</div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Bottom Controls & Sequencer Shell -->
+    <footer class="synth-footer">
+      <!-- Transport Row -->
+      <div class="transport-bar">
+        <div class="transport-buttons">
+          <button id="btn-rewind" class="btn-transport" aria-label="Rewind to Department 01">⏮ REWIND</button>
+          <button id="btn-prev" class="btn-transport" aria-label="Previous Department">◀ PREV</button>
+          <button id="btn-play-pause" class="btn-transport primary" aria-label="Play or Pause Sequencer">
+            <span>▶</span> PLAY
+          </button>
+          <button id="btn-next" class="btn-transport" aria-label="Next Department">NEXT ▶</button>
+        </div>
+
+        <!-- Scrubbable Timeline -->
+        <div class="timeline-section">
+          <label for="timeline-slider" style="font-size:10px; color:#718096;">DÉPARTEMENT</label>
+          <div class="timeline-slider-wrap">
+            <input type="range" id="timeline-slider" min="0" max="95" step="1" value="0" aria-label="Department Timeline Position" />
+          </div>
+          <span id="timeline-badge" class="timeline-index-badge">1 / 96</span>
+        </div>
+
+        <!-- Mode Switcher -->
+        <div class="mode-switcher" role="tablist" aria-label="Sequencer Playback Mode">
+          <button id="tab-chromatic" class="mode-tab active" role="tab" aria-selected="true">
+            [ 88-KEY CHROMATIC ]
+          </button>
+          <button id="tab-marseillaise" class="mode-tab" role="tab" aria-selected="false">
+            [ LA MARSEILLAISE ]
+          </button>
+        </div>
+      </div>
+
+      <!-- Tracker Keyboard & Tempo Controls -->
+      <div class="bottom-sub-bar">
+        <!-- Tracker Keyboard (FastTracker II ProTracker QWERTY Style) -->
+        <div class="tracker-keyboard-container">
+          <div class="tracker-octave-control">
+            <span id="tracker-octave-val">Octave: 4</span>
+            <button id="btn-octave-down" class="btn-octave" aria-label="Octave Down">-</button>
+            <button id="btn-octave-up" class="btn-octave" aria-label="Octave Up">+</button>
+          </div>
+          <div id="tracker-keys-container" class="tracker-keys-row"></div>
+        </div>
+
+        <!-- Speed & BPM -->
+        <div class="tempo-controls">
+          <label for="speed-slider">TEMPO / SPEED:</label>
+          <input type="range" id="speed-slider" min="0.5" max="3.0" step="0.1" value="1.0" />
+          <span id="speed-val" style="color:var(--neon-cyan); font-weight:bold; min-width:35px;">1.0x</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Dummy root container to satisfy AI Studio starter if needed -->
+  <div id="root" style="display:none;"></div>
+
+  <!-- Global scripts for 100% offline file:// double-click safety -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
