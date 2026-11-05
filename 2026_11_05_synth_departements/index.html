@@ -62,22 +62,21 @@
       </div>
     </header>
 
+    <!-- Mobile Top Department Banner (Active on mobile screens <= 768px) -->
+    <div id="mobile-dept-banner" class="mobile-dept-banner" aria-live="polite">
+      <span id="mobile-code" class="mobile-code">[ 01 ]</span>
+      <span id="mobile-name" class="mobile-name">AIN</span>
+      <span id="mobile-chef" class="mobile-chef">Bourg-en-Bresse</span>
+      <span id="mobile-note" class="mobile-note">A0 • 27.5 Hz</span>
+    </div>
+
     <!-- Main Workspace Stage -->
     <main class="main-stage">
-      <!-- Left Synth Rack (ARP 2500 Console Controls) - Collapsible Drawer -->
+      <!-- Left Synth Rack (ARP 2500 Console Controls) - Floating Overlay Drawer -->
       <aside id="synth-panel-left" class="synth-panel-left" aria-label="Synthesizer Matrix Controls">
         <div class="panel-header">
-          <span>ARP-2500 Console</span>
-          <button id="btn-collapse-drawer" class="btn-drawer-collapse" aria-label="Collapse Synth Matrix">◀ HIDE</button>
-        </div>
-
-        <!-- Master Volume -->
-        <div class="slider-group">
-          <div class="slider-label-row">
-            <label for="slider-volume">MASTER VOLUME</label>
-            <span id="val-volume" class="slider-val">38%</span>
-          </div>
-          <input type="range" id="slider-volume" class="synth-slider" min="0" max="1.0" step="0.02" value="0.38" />
+          <span>ARP-2500 CONSOLE</span>
+          <button id="btn-close-synth-panel" class="btn-drawer-collapse" aria-label="Close Synth Matrix">✕ CLOSE</button>
         </div>
 
         <!-- Filter Cutoff -->
@@ -137,11 +136,6 @@
           </div>
         </div>
       </aside>
-
-      <!-- Collapsed Drawer Docked Open Button -->
-      <button id="btn-open-drawer" class="btn-drawer-open" aria-label="Open Synth Matrix" style="display:none;">
-        <span>▶</span> ARP-2500 MATRIX
-      </button>
 
       <!-- Center Map Stage -->
       <section class="map-stage" aria-label="Interactive Cartography">
@@ -255,11 +249,26 @@
           <div id="tracker-keys-container" class="tracker-keys-row"></div>
         </div>
 
-        <!-- Speed & BPM -->
-        <div class="tempo-controls">
-          <label for="speed-slider">TEMPO / SPEED:</label>
-          <input type="range" id="speed-slider" min="0.5" max="3.0" step="0.1" value="1.0" />
-          <span id="speed-val" style="color:var(--neon-cyan); font-weight:bold; min-width:35px;">1.0x</span>
+        <!-- Right-side Synth & Audio Controls: Tempo, Volume, ARP-2500 Panel Toggle -->
+        <div class="bottom-right-controls">
+          <!-- Tempo / Speed -->
+          <div class="tempo-controls">
+            <label for="speed-slider">TEMPO:</label>
+            <input type="range" id="speed-slider" min="0.5" max="3.0" step="0.1" value="1.0" aria-label="Playback Tempo" />
+            <span id="speed-val" class="ctrl-val">1.0x</span>
+          </div>
+
+          <!-- Master Volume Slider (10% default) -->
+          <div class="volume-controls">
+            <label for="slider-volume">VOL:</label>
+            <input type="range" id="slider-volume" min="0" max="1.0" step="0.02" value="0.10" aria-label="Master Volume" />
+            <span id="val-volume" class="ctrl-val">10%</span>
+          </div>
+
+          <!-- ARP-2500 Console Drawer Toggle Button -->
+          <button id="btn-toggle-synth-panel" class="btn-toggle-synth" aria-label="Toggle ARP-2500 Synth Console" aria-expanded="false">
+            <span>🎛</span> ARP-2500
+          </button>
         </div>
       </div>
     </footer>

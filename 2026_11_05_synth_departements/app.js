@@ -46,7 +46,7 @@
     reverbWet: 0.35,    // Reverb send level
     releaseTime: 0.28,  // seconds
     waveform: 'sawsquare', // 'sawsquare', 'saw', 'square'
-    volume: 0.38
+    volume: 0.10 // Default 10% volume as requested
   };
 
   function initAudio() {
@@ -361,11 +361,16 @@
   const trackerKeysContainer = document.getElementById('tracker-keys-container');
   const idfActiveBadge = document.getElementById('idf-active-badge');
 
-  // Drawer Controls
+  // Mobile Banner Elements
+  const mobileCode = document.getElementById('mobile-code');
+  const mobileName = document.getElementById('mobile-name');
+  const mobileChef = document.getElementById('mobile-chef');
+  const mobileNote = document.getElementById('mobile-note');
+
+  // Drawer / Synth Overlay Controls
   const synthPanelLeft = document.getElementById('synth-panel-left');
-  const btnCollapseDrawer = document.getElementById('btn-collapse-drawer');
-  const btnOpenDrawer = document.getElementById('btn-open-drawer');
-  const mainStage = document.querySelector('.main-stage');
+  const btnCloseSynthPanel = document.getElementById('btn-close-synth-panel');
+  const btnToggleSynthPanel = document.getElementById('btn-toggle-synth-panel');
 
   // Sliders
   const sliderVolume = document.getElementById('slider-volume');
@@ -563,6 +568,18 @@
     timelineSlider.value = dept.index;
     timelineBadge.textContent = `${dept.index + 1} / 96`;
 
+    // Update Mobile Top Banner
+    if (mobileCode) {
+      mobileCode.textContent = `[ ${dept.code} ]`;
+      mobileCode.style.color = noteInfo.color;
+    }
+    if (mobileName) mobileName.textContent = dept.name;
+    if (mobileChef) mobileChef.textContent = dept.chefLieu;
+    if (mobileNote) {
+      mobileNote.textContent = `${noteInfo.fullName} • ${noteInfo.freq.toFixed(1)} Hz`;
+      mobileNote.style.color = noteInfo.color;
+    }
+
     // Highlight chromatic palette legend
     document.querySelectorAll('.legend-chip').forEach(chip => {
       if (chip.getAttribute('data-note') === noteInfo.pitchName) {
@@ -625,6 +642,16 @@
   function stepSequence() {
     triggerDepartment(currentDeptIndex, true);
 
+    // User requirement: Stop once it gets to the 96th department (index 95).
+    // Rewind back to index 0, ready for the user to press Play again, but do NOT loop automatically.
+    if (currentDeptIndex >= departments.length - 1) {
+      pauseSequence();
+      currentDeptIndex = 0;
+      timelineSlider.value = 0;
+      timelineBadge.textContent = '1 / 96';
+      return;
+    }
+
     let nextIntervalMs = 250 / speedMultiplier;
     if (currentMode === 'marseillaise') {
       const noteInfo = getMarseillaiseMapping(currentDeptIndex);
@@ -632,7 +659,7 @@
       nextIntervalMs = (noteInfo.durationSixteenths || 4) * sixteenthMs;
     }
 
-    currentDeptIndex = (currentDeptIndex + 1) % departments.length;
+    currentDeptIndex++;
 
     if (isPlaying) {
       sequenceTimer = setTimeout(stepSequence, nextIntervalMs);
@@ -875,23 +902,27 @@
       }, 150);
     }
 
-    // Drawer collapse & open controls
-    function toggleSynthDrawer(collapse) {
-      const isCollapsed = collapse !== undefined ? collapse : !synthPanelLeft.classList.contains('collapsed');
-      synthPanelLeft.classList.toggle('collapsed', isCollapsed);
-      if (mainStage) mainStage.classList.toggle('drawer-collapsed', isCollapsed);
-      if (btnOpenDrawer) btnOpenDrawer.style.display = isCollapsed ? 'flex' : 'none';
+    // Floating ARP-2500 Console Overlay Controls (Toggled from bottom bar, overlaying left side)
+    function toggleSynthPanel(open) {
+      const shouldOpen = open !== undefined ? open : !synthPanelLeft.classList.contains('open');
+      synthPanelLeft.classList.toggle('open', shouldOpen);
+      if (btnToggleSynthPanel) {
+        btnToggleSynthPanel.classList.toggle('active', shouldOpen);
+        btnToggleSynthPanel.setAttribute('aria-expanded', String(shouldOpen));
+      }
     }
 
-    if (btnCollapseDrawer) {
-      btnCollapseDrawer.addEventListener('click', () => toggleSynthDrawer(true));
+    if (btnToggleSynthPanel) {
+      btnToggleSynthPanel.addEventListener('click', () => toggleSynthPanel());
     }
-    if (btnOpenDrawer) {
-      btnOpenDrawer.addEventListener('click', () => toggleSynthDrawer(false));
+    if (btnCloseSynthPanel) {
+      btnCloseSynthPanel.addEventListener('click', () => toggleSynthPanel(false));
     }
 
-    // Master Volume Slider
+    // Master Volume Slider (In bottom control bar, default 10%)
     if (sliderVolume) {
+      sliderVolume.value = synthParams.volume;
+      if (valVolume) valVolume.textContent = `${Math.round(synthParams.volume * 100)}%`;
       sliderVolume.addEventListener('input', (e) => {
         synthParams.volume = parseFloat(e.target.value);
         if (valVolume) valVolume.textContent = `${Math.round(synthParams.volume * 100)}%`;

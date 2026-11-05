@@ -139,39 +139,83 @@ html, body {
   50% { opacity: 1; }
 }
 
+/* Mobile Top Department Banner */
+.mobile-dept-banner {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(12, 14, 22, 0.95);
+  border-bottom: 1px solid rgba(255, 159, 28, 0.3);
+  font-size: 11px;
+  z-index: 15;
+  white-space: nowrap;
+  gap: 8px;
+}
+
+.mobile-code {
+  font-weight: 900;
+  color: var(--neon-amber);
+  letter-spacing: 1px;
+}
+
+.mobile-name {
+  font-weight: bold;
+  color: #fff;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.mobile-chef {
+  color: #a0aec0;
+  font-size: 10px;
+}
+
+.mobile-note {
+  color: var(--neon-cyan);
+  font-weight: 800;
+  font-size: 10px;
+}
+
 /* Main Workspace */
 .main-stage {
   flex: 1;
   display: grid;
-  grid-template-columns: 240px 1fr 340px;
+  grid-template-columns: 1fr 340px;
   position: relative;
   overflow: hidden;
-  transition: grid-template-columns 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.main-stage.drawer-collapsed {
-  grid-template-columns: 0px 1fr 340px;
-}
-
-/* Left Synth Panel (ARP 2500 Sliders) */
+/* Left Synth Panel (ARP 2500 Sliders) - Floating Overlay (Hidden by Default) */
 .synth-panel-left {
-  background: var(--bg-panel);
-  border-right: 1px solid var(--bg-panel-border);
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  bottom: 12px;
+  width: 255px;
+  max-height: calc(100% - 24px);
+  background: rgba(12, 14, 22, 0.96);
+  border: 1px solid var(--neon-amber);
+  border-radius: 6px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.92), 0 0 20px rgba(255, 159, 28, 0.25);
   display: flex;
   flex-direction: column;
   padding: 14px;
-  gap: 14px;
-  z-index: 25;
+  gap: 12px;
+  z-index: 60;
   overflow-y: auto;
   overflow-x: hidden;
-  width: 240px;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
-}
-
-.synth-panel-left.collapsed {
-  transform: translateX(-100%);
+  transform: translateX(-125%);
   opacity: 0;
   pointer-events: none;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.synth-panel-left.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .btn-drawer-collapse {
@@ -182,7 +226,7 @@ html, body {
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 1px;
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 3px;
   cursor: pointer;
   transition: all 0.15s;
@@ -192,36 +236,6 @@ html, body {
   background: rgba(255, 159, 28, 0.35);
   box-shadow: 0 0 8px rgba(255, 159, 28, 0.5);
   color: #fff;
-}
-
-.btn-drawer-open {
-  position: absolute;
-  top: 14px;
-  left: 0;
-  z-index: 30;
-  background: #121522;
-  border: 1px solid var(--neon-amber);
-  border-left: none;
-  color: var(--neon-amber);
-  padding: 7px 10px;
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-  border-radius: 0 4px 4px 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 159, 28, 0.3);
-  transition: all 0.15s;
-}
-
-.btn-drawer-open:hover {
-  background: #1c2236;
-  color: #fff;
-  box-shadow: 2px 2px 16px rgba(0, 0, 0, 0.9), 0 0 16px rgba(255, 159, 28, 0.6);
-  transform: translateX(2px);
 }
 
 .panel-header {
@@ -855,16 +869,77 @@ html, body {
   opacity: 0.7;
 }
 
-.tempo-controls {
+.bottom-right-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
+}
+
+.tempo-controls, .volume-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 11px;
   color: #a0aec0;
 }
 
-.tempo-controls input {
-  width: 90px;
+.tempo-controls input, .volume-controls input {
+  width: 75px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #1a202c;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  border: 1px solid #2d3748;
+}
+
+.tempo-controls input::-webkit-slider-thumb, .volume-controls input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 16px;
+  background: #cbd5e0;
+  border: 1px solid #4a5568;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.tempo-controls input::-webkit-slider-thumb:hover, .volume-controls input::-webkit-slider-thumb:hover {
+  background: var(--neon-amber);
+  box-shadow: 0 0 8px var(--neon-amber);
+}
+
+.ctrl-val {
+  color: var(--neon-cyan);
+  font-weight: bold;
+  min-width: 30px;
+  font-size: 11px;
+}
+
+.btn-toggle-synth {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #151828;
+  border: 1px solid var(--neon-amber);
+  color: var(--neon-amber);
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 0 10px rgba(255, 159, 28, 0.2);
+}
+
+.btn-toggle-synth:hover, .btn-toggle-synth.active {
+  background: rgba(255, 159, 28, 0.25);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(255, 159, 28, 0.5);
 }
 
 /* Audio Unlock / Splash Modal */
@@ -981,12 +1056,81 @@ html, body {
   display: none;
 }
 
-/* Mobile & Small Screen Tweaks */
+/* ==========================================================================
+   Responsive Adaptations (Tablet & Mobile)
+   ========================================================================== */
+
+/* Tablet (<= 1024px): Hide Île-de-France zoom inset, center France map */
 @media (max-width: 1024px) {
-  .main-stage {
-    grid-template-columns: 1fr 280px;
+  .idf-inset-panel {
+    display: none !important;
   }
-  .synth-panel-left {
+  .main-stage {
+    grid-template-columns: 1fr 300px;
+  }
+}
+
+/* Mobile (<= 768px): Hide right HUD, zoom inset, tracker keys; keep map centered with top banner & bottom controls */
+@media (max-width: 768px) {
+  .mobile-dept-banner {
+    display: flex !important;
+  }
+  .synth-hud-right {
+    display: none !important;
+  }
+  .idf-inset-panel {
+    display: none !important;
+  }
+  .tracker-keyboard-container {
+    display: none !important;
+  }
+  .main-stage {
+    grid-template-columns: 1fr;
+  }
+  #france-svg {
+    max-height: calc(100vh - 210px);
+  }
+  .synth-header {
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+  }
+  .app-subtitle {
     display: none;
+  }
+  .synth-footer {
+    height: auto;
+    min-height: auto;
+    padding: 8px 10px;
+  }
+  .transport-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+  .timeline-section {
+    order: 3;
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    margin-top: 2px;
+  }
+  .timeline-slider-wrap {
+    width: 140px;
+  }
+  .bottom-sub-bar {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .bottom-right-controls {
+    width: 100%;
+    justify-content: space-around;
+    gap: 6px;
+  }
+  .volume-controls input, .tempo-controls input {
+    width: 60px;
   }
 }
