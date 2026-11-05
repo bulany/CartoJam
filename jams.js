@@ -67,35 +67,38 @@ window.CARTOJAM_DATA = {
       }
     },
     {
-      id: "2026_11_05_retro_flight_paths",
+      id: "2026_11_05_synth_departements",
       date: "2026-11-05",
-      title: "Retro Flight Paths",
-      subtitle: "A retro-inspired 3D holographic flight path simulator with astronomical solar terminator & great-circle tracking",
+      title: "Synth-Départements",
+      subtitle: "Close Encounters 1977 Edition — Web Audio ARP-2500 synth cartography, 88-key chromatic spectrum & La Marseillaise sequencer",
       path: "./2026_11_05_synth_departements/index.html",
       thumb: "./2026_11_05_synth_departements/thumb.jpg",
       gif: "./2026_11_05_synth_departements/preview.gif", // Uses thumb.jpg until preview.gif is added so hover never breaks!
-      tags: ["Three.js", "CRT Shader", "Aviation", "Solar Terminator", "Offline-First", "No-Build"],
+      tags: ["Web Audio API", "D3 / SVG", "Cartography", "Synthesizer", "Close Encounters", "Offline-First", "No-Build"],
       stats: {
-        human_min: 27.1,
-        ai_min: 32.2,
-        tokens: "26.3k+ (Flash Max & Argon) + 4x Passes (App Builder 3.8 Flash)"
+        human_min: 31.2,
+        ai_min: 27.2,
+        tokens: "24.3k+ (Flash Max & 3.8 Flash) + 3x Passes (App Builder 3.8 Flash)"
       },
       ai_log: {
-        dayStart: "2026-10-30T01:30:00+02:00",
-        dayEnd: "2026-10-30T03:05:00+02:00",
+        dayStart: "2026-11-05T21:52:00+01:00",
+        dayEnd: "2026-11-06T00:31:00+01:00",
         events: [
-          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "01:32", end: "01:43", dur: "11m 10s", color: "#10b981", detail: "Voice spec: WarGames WOPR 3D globe, EY426 route & CRT terminator" },
-          { lane: "Gemini Flash Max", actor: "Gemini Flash Max", start: "01:43", end: "01:45", dur: "1m 52.1s (20,559 tok)", color: "#8b5cf6", detail: "Turn 1: Standalone single-file prototype (flash38.html)" },
-          { lane: "Gemini Argon (Architect)", actor: "Gemini Argon", start: "01:48", end: "01:50", dur: "53.6s (5,794 tok)", color: "#3b82f6", detail: "Turn 2: Modular No-Build spec prompt for Google App Builder" },
-          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "02:00", end: "02:02", dur: "1m 11s", color: "#10b981", detail: "Pasted Argon spec to App Builder, logged initial telemetry" },
-          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "02:00", end: "02:12", dur: "12m 21s", color: "#f59e0b", detail: "Pass 1: Modular scaffolding (index, style, data, app)" },
-          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "02:13", end: "02:15", dur: "1m 50s", color: "#f59e0b", detail: "Pass 2: Self-correction run for detected build errors" },
-          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "02:18", end: "02:25", dur: "7m 28s", color: "#10b981", detail: "Voice feedback: Google Earth center-pivot controls, BA15 Kangaroo preset, speed presets, loop flight" },
-          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "02:26", end: "02:31", dur: "5m 25s", color: "#f59e0b", detail: "Pass 3: Camera pivot lock, BA15 default, 1x/600x/3600x speeds & loop animation" },
-          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "02:40", end: "02:45", dur: "5m 07s", color: "#10b981", detail: "Voice feedback: Clean grid, high-res contours, translucent ocean hollow globe, flash38.html toggle button" },
-          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "02:46", end: "02:56", dur: "10m 16s", color: "#f59e0b", detail: "Pass 4: Ocean transparency, vector contours, alternate view modal switch" },
-          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "02:58", end: "03:00", dur: "2m 21s", color: "#10b981", detail: "Final voice polish: Remove inland vector artifacts, strip sun reticle/yellow ring, smooth plane motion" },
-          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "03:00", end: "03:00", dur: "0s (Quota Reached)", color: "#ef4444", detail: "Pass 5: Cancelled due to quota limit reached" }
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "21:52", end: "22:06", dur: "14m 10s", color: "#10b981", detail: "Voice spec: Spielberg Close Encounters synth colors, 88-key chromatic + La Marseillaise mapping, ÎdF inset & tracker keyboard" },
+          { lane: "Gemini Flash Max", actor: "Gemini Flash Max", start: "22:06", end: "22:07", dur: "26.2s (5,498 tok)", color: "#8b5cf6", detail: "Turn 1: Comprehensive No-Build architectural spec prompt for Google AI Studio App Builder" },
+          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "22:07", end: "22:19", dur: "12m 26s", color: "#f59e0b", detail: "Pass 1: Full scaffold generation (index, style, app, data, pure Web Audio ARP-2500 engine)" },
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "22:26", end: "22:27", dur: "0m 35s", color: "#10b981", detail: "Interim log & test verification of initial build output" },
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "22:28", end: "22:32", dur: "3m 23s", color: "#10b981", detail: "Voice feedback: Mothership motif intro trigger, halve default volume, synth controls drawer, ÎdF inset glow sync" },
+          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "22:34", end: "22:40", dur: "6m 19s", color: "#f59e0b", detail: "Pass 2: Close Encounters 5-note intro hook, ÎdF active state synchronization, collapsible drawer" },
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "22:41", end: "22:41", dur: "0m 15s", color: "#10b981", detail: "Log check on Pass 2 results" },
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "22:46", end: "22:54", dur: "7m 52s", color: "#10b981", detail: "Voice feedback: Overlay drawer, bottom transport HUD redesign (tempo, master vol @ 10%, synth button), stop at dept 99, mobile/tablet simplified mode" },
+          { lane: "AI Studio Build (3.8 Flash)", actor: "Gemini 3.8 Flash", start: "22:55", end: "23:02", dur: "7m 10s", color: "#f59e0b", detail: "Pass 3: Transport line layout, 10% gain default, stop-on-end logic & responsive mobile strip-down" },
+          { lane: "Gemini 3.8 Flash", actor: "Gemini 3.8 Flash", start: "23:23", end: "23:23", dur: "13.6s (2,465 tok)", color: "#3b82f6", detail: "Prompt turn: Alignment bug fixes and CSS positioning pass" },
+          { lane: "Gemini 3.8 Flash", actor: "Gemini 3.8 Flash", start: "23:53", end: "23:53", dur: "11.2s (4,084 tok)", color: "#3b82f6", detail: "Prompt turn: Layout tuning and control alignment fixes" },
+          { lane: "Gemini 3.8 Flash", actor: "Gemini 3.8 Flash", start: "00:00", end: "00:00", dur: "9.5s (5,090 tok)", color: "#3b82f6", detail: "Prompt turn: Midnight edge-case cleanup & state polish" },
+          { lane: "Gemini 3.8 Flash", actor: "Gemini 3.8 Flash", start: "00:13", end: "00:13", dur: "9.0s (1,356 tok)", color: "#3b82f6", detail: "Prompt turn: Oscilloscope render pipeline & canvas sync fix" },
+          { lane: "Gemini 3.8 Flash", actor: "Gemini 3.8 Flash", start: "00:17", end: "00:17", dur: "5.6s (1,850 tok)", color: "#3b82f6", detail: "Prompt turn: Final oscilloscope waveform visual polish" },
+          { lane: "Human (Voice Spec & Test)", actor: "Bulany", start: "00:25", end: "00:31", dur: "5m 12s", color: "#10b981", detail: "Final voice wrap-up: Session telemetry collation, jams.js registration & deploy prep" }
         ]
       }
     }
